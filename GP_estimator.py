@@ -108,8 +108,8 @@ print("\n\n----- SET FILE NAME -----")
 # loading path
 tr_path = data_path + file_name_1
 test1_path = data_path + file_name_2
-M_tr_path = data_path + file_name_m1
-M_test1_path = data_path + file_name_m2
+# M_tr_path = data_path + file_name_m1
+# M_test1_path = data_path + file_name_m2
 
 # saving and loading path
 model_saving_path = saving_path + "model_" + model_name + ".pt"
@@ -533,10 +533,10 @@ if "RBF_1" in model_name:
 print("\n\n----- GET INERTIA MATRIX ESTIMATES -----")
 
 # load inertia matrix
-M_tr = pkl.load(open(M_tr_path, "rb"))
-M_test1 = pkl.load(open(M_test1_path, "rb"))
-M_tr = np.stack(M_tr[::downsampling_data_load], axis=0)[:num_dat_tr]
-M_test1 = np.stack(M_test1[::downsampling_data_load], axis=0)
+# M_tr = pkl.load(open(M_tr_path, "rb"))
+# M_test1 = pkl.load(open(M_test1_path, "rb"))
+# M_tr = np.stack(M_tr[::downsampling_data_load], axis=0)[:num_dat_tr]
+# M_test1 = np.stack(M_test1[::downsampling_data_load], axis=0)
 
 # compute inertia matrix estimates
 with torch.no_grad():
@@ -606,13 +606,13 @@ with torch.no_grad():
 
 # mean square error
 # err_M_tr = np.mean(np.sqrt((M_tr-M_tr_hat)**2), axis=(1,2))
-err_M_tr_ = np.mean(np.sqrt((M_tr - M_tr_hat_) ** 2), axis=(1, 2))
+#err_M_tr_ = np.mean(np.sqrt((M_tr - M_tr_hat_) ** 2), axis=(1, 2))
 # print('\nTraining mean MSE: ',np.mean(err_M_tr))
-print("Training mean MSE kin: ", np.mean(err_M_tr_))
+# print("Training mean MSE kin: ", np.mean(err_M_tr_))
 # err_M_test1 = np.mean(np.sqrt((M_test1-M_test1_hat)**2), axis=(1,2))
-err_M_test1_ = np.mean(np.sqrt((M_test1 - M_test1_hat_) ** 2), axis=(1, 2))
+# err_M_test1_ = np.mean(np.sqrt((M_test1 - M_test1_hat_) ** 2), axis=(1, 2))
 # print('\nTest mean MSE: ',np.mean(err_M_test1))
-print("Test mean MSE kin: ", np.mean(err_M_test1_))
+# print("Test mean MSE kin: ", np.mean(err_M_test1_))
 
 # check simmetry
 symm_err_tr = M_tr_hat_ - np.transpose(M_tr_hat_, axes=(0, 2, 1))
@@ -635,17 +635,17 @@ print(
     M_test1_hat_.shape[0] - simm_mismatches_test1,
 )
 
-# check positivity
-eig_tr, _ = np.linalg.eig(M_tr)
-# eig_tr_hat, _  = np.linalg.eig(M_tr_hat)
-eig_tr_hat_, _ = np.linalg.eig(M_tr_hat_)
-eig_test1, _ = np.linalg.eig(M_test1)
-# eig_test1_hat, _  = np.linalg.eig(M_test1_hat)
-eig_test1_hat_, _ = np.linalg.eig(M_test1_hat_)
-non_positive_def_count_tr = np.sum(np.min(eig_tr_hat_, 1) <= 0)
-non_positive_def_count_test1 = np.sum(np.min(eig_test1_hat_, 1) <= 0)
-print("Number of training samples with non-positive inertia: ", non_positive_def_count_tr)
-print("Number of test samples with non-positive inertia: ", non_positive_def_count_test1)
+# # check positivity
+# eig_tr, _ = np.linalg.eig(M_tr)
+# # eig_tr_hat, _  = np.linalg.eig(M_tr_hat)
+# eig_tr_hat_, _ = np.linalg.eig(M_tr_hat_)
+# eig_test1, _ = np.linalg.eig(M_test1)
+# # eig_test1_hat, _  = np.linalg.eig(M_test1_hat)
+# eig_test1_hat_, _ = np.linalg.eig(M_test1_hat_)
+# non_positive_def_count_tr = np.sum(np.min(eig_tr_hat_, 1) <= 0)
+# non_positive_def_count_test1 = np.sum(np.min(eig_test1_hat_, 1) <= 0)
+# print("Number of training samples with non-positive inertia: ", non_positive_def_count_tr)
+# print("Number of test samples with non-positive inertia: ", non_positive_def_count_test1)
 
 # plot MSE
 Project_Utils.plot_list([err_M_tr_, err_M_test1_], ["Training inertias MSE", "Test inertias MSE"], ["Training", "Test"])

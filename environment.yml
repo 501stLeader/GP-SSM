@@ -1,0 +1,22 @@
+
+name: LIP4RID
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - nomkl                     # Conda-specific, ignored by pip install below
+  - python=3.8                # Python version, ignored by pip install below
+  - numpy~=1.24.0
+  - matplotlib
+  - dill==0.3.8               # Specific version for pip
+  - ipython
+  - black
+  - pre_commit
+  - flake8
+  - pytest
+  - pickleshare
+  - pandas < 2.0.0            # Specific version constraint for pip
+  - scipy
+  - jax
+  # - pip:                      # Example if there was a pip section
+  #   - some_pip_package
