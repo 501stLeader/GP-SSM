@@ -234,46 +234,6 @@ class Linear_GP(GP_prior.GP_prior):
         return w_hat
 
 
-# class Linear_GP_f_transform(Linear_GP):
-#     """docstring for Linear_GP_F_transform"""
-#     def __init__(self, active_dims, f_transform, f_add_par,
-#                  sigma_n_init=None, flg_train_sigma_n=False,
-#                  f_mean=None, f_mean_add_par_dict={},
-#                  pos_par_mean_init=None, flg_train_pos_par_mean=False,
-#                  free_par_mean_init=None, flg_train_free_par_mean=False,
-#                  Sigma_function=None, Sigma_f_additional_par_list=None,
-#                  Sigma_pos_par_init=None, flg_train_Sigma_pos_par=True,
-#                  Sigma_free_par_init=None, flg_train_Sigma_free_par=True,
-#                  flg_offset=False,
-#                  scale_init=np.ones(1), flg_train_scale=False,
-#                  name='', dtype=torch.float64, sigma_n_num=None, device=None):
-#         super(Linear_GP_F_transform, self).__init__(active_dims=active_dims,
-#                                                     sigma_n_init=sigma_n_init, flg_train_sigma_n=flg_train_sigma_n,
-#                                                     f_mean=f_mean, f_mean_add_par_dict=f_mean_add_par_dict,
-#                                                     pos_par_mean_init=pos_par_mean_init, flg_train_pos_par_mean=flg_train_pos_par_mean,
-#                                                     free_par_mean_init=free_par_mean_init, flg_train_free_par_mean=flg_train_free_par_mean,
-#                                                     Sigma_function=Sigma_function, Sigma_f_additional_par_list=Sigma_f_additional_par_list,
-#                                                     Sigma_pos_par_init=Sigma_pos_par_init, flg_train_Sigma_pos_par=flg_train_Sigma_pos_par,
-#                                                     Sigma_free_par_init=Sigma_free_par_init, flg_train_Sigma_free_par=flg_train_Sigma_free_par,
-#                                                     flg_offset=flg_offset,
-#                                                     scale_init=scale_init, flg_train_scale=flg_train_scale,
-#                                                     name=name, dtype=dtype, sigma_n_num=sigma_n_num, device=device)
-#         self.f_transform = f_transform
-#         self.f_add_par = f_add_par
-
-
-#     def get_phi(self,X):
-#         """
-#         Returns the regression matrix associated to the inputs X
-#         """
-#         num_samples = X.shape[0]
-#         phi = self.f_transform(X,self.f_add_par)
-#         if self.flg_offset:
-#             return torch.cat([phi,torch.ones(num_samples,1, dtype=self.dtype, device=self.device)],1)
-#         else:
-#             return phi
-
-
 class Poly_GP(Linear_GP):
     """
     GP with polynomial kernel. Implemented extending the Linear_GP
@@ -351,85 +311,6 @@ class Poly_GP(Linear_GP):
 
     def get_parameters_inv_lemma(self, X, Y, flg_print=False):
         raise NotImplementedError()
-
-
-# class MPK_GP(Linear_GP):
-#     """
-#     Implementation of the Multiplicaive Polynomial Kernel
-#     """
-#     def __init__(self, active_dims, poly_deg,
-#                  sigma_n_init=None, flg_train_sigma_n=True,
-#                  Sigma_pos_par_init=None, flg_train_Sigma_pos_par=True,
-#                  Sigma_free_par_init=None, flg_train_Sigma_free_par=True,
-#                  flg_offset=True,
-#                  name='', dtype=torch.float64, sigma_n_num=None, device=None):
-#         # init the linear GP object
-#         mean_init=None
-#         flg_mean_trainable=False
-#         flg_no_mean=True
-#         Sigma_function = Utils.Parameters_covariance_functions.diagonal_covariance_ARD
-#         Sigma_f_additional_par_list = []
-#         super(MPK_GP, self).__init__(active_dims=active_dims,
-#                                      mean_init=mean_init, flg_mean_trainable=flg_mean_trainable, flg_no_mean=flg_no_mean,
-#                                      sigma_n_init=sigma_n_init, flg_train_sigma_n=flg_train_sigma_n,
-#                                      Sigma_function=Sigma_function, Sigma_f_additional_par_list=Sigma_f_additional_par_list,
-#                                      Sigma_pos_par_init=None, flg_train_Sigma_pos_par=False,
-#                                      Sigma_free_par_init=None, flg_train_Sigma_free_par=False,
-#                                      flg_offset=flg_offset,
-#                                      name=name, dtype=dtype, sigma_n_num=sigma_n_num, device=device)
-#         self.poly_deg = poly_deg
-#         # get kernel parameters
-#         self.Sigma_free_par = torch.nn.Parameter(torch.tensor(np.log(Sigma_free_par_init),
-#                                                               dtype=self.dtype,
-#                                                               device=self.device),
-#                                                 requires_grad=flg_train_Sigma_free_par)
-#         self.num_Sigma_free_par = int(Sigma_free_par_init.size/poly_deg)
-#         self.Sigma_pos_par = torch.nn.Parameter(torch.tensor(np.log(Sigma_pos_par_init),
-#                                                              dtype=self.dtype,
-#                                                              device=self.device),
-#                                                 requires_grad=flg_train_Sigma_pos_par)
-#         self.num_Sigma_pos_par = int(Sigma_pos_par_init.size/poly_deg)
-
-
-#     def get_Sigma(self):
-#         """Computes the Sigma matrix"""
-#         Sigma_pos_par = torch.exp(self.Sigma_pos_par[self.current_deg*self.num_Sigma_pos_par:(self.current_deg+1)*self.num_Sigma_pos_par])
-#         Sigma_free_par = torch.zeros(self.num_Sigma_free_par,
-#                                      dtype=self.dtype,
-#                                      device=self.device)
-#         for deg in range(self.current_deg, self.poly_deg):
-#             Sigma_free_par += torch.exp(self.Sigma_free_par[deg*self.num_Sigma_free_par:(deg+1)*self.num_Sigma_free_par])**2
-#         Sigma_free_par = torch.sqrt(Sigma_free_par)
-#         return self.Sigma_function(torch.cat([Sigma_free_par,Sigma_pos_par]))
-
-
-#     def get_covariance(self, X1, X2=None, flg_noise=False):
-#         N1 = X1.size()[0]
-#         if X2 is None:
-#             N2 = N1
-#         else:
-#             N2 = X2.size()[0]
-#         K_X = torch.ones((N1,N2), dtype=self.dtype, device=self.device)
-#         for deg in range(0,self.poly_deg):
-#             self.current_deg = deg
-#             K_X *= super(MPK_GP, self).get_covariance(X1,X2, flg_noise=False)
-#         if flg_noise & self.GP_with_noise & N1==N2:
-#             K_X += self.get_sigma_n_2()*torch.eye(N1, dtype=self.dtype, device=self.device)
-#         return K_X
-
-
-#     def get_diag_covariance(self, X, flg_noise=False):
-#         """ Returns the diag of the cov matrix"""
-#         N = X.size()[0]
-#         diag = torch.ones(N, dtype=self.dtype, device=self.device)
-#         for deg in range(0,self.poly_deg):
-#             self.current_deg = deg
-#             diag *= super(MPK_GP, self).get_diag_covariance(X, flg_noise=False)
-#         if flg_noise & self.GP_with_noise:
-#             return diag + self.get_sigma_n_2()
-#         else:
-#             return diag
-
 
 class MPK_GP(Linear_GP):
     """
@@ -529,77 +410,6 @@ class MPK_GP(Linear_GP):
         else:
             return diag
 
-
-# class Poly_par_shared_GP(Poly_GP):
-#     """
-#     GP with polynomial kernel and sharing of the parameters.
-#     The kernel hyperparameters depends on the output_channel selected,
-#     and are a function of a set of common hyperparameters.
-#     In this basic implementation the PK hyperparameters are a subset of
-#     the common hyperparameters, selected based on a set of indices
-#     """
-#     def __init__(self, active_dims, poly_deg,
-#                  sigma_n_init=None, flg_train_sigma_n=True,
-#                  Sigma_function=None, Sigma_f_additional_par_list=None,
-#                  Sigma_pos_par_shared_init=None, flg_train_Sigma_pos_par=True,
-#                  Sigma_free_par_shared_init=None, flg_train_Sigma_free_par=True,
-#                  flg_offset=True,
-#                  Sigma_pos_par_indices_list = None, Sigma_free_par_indices_list=None,
-#                  scale_init=np.ones(1), flg_train_scale=False,
-#                  name='', dtype=torch.float64, sigma_n_num=None, device=None):
-#         # initilize the mean parameters (no mean considered)
-#         mean_init=None
-#         flg_mean_trainable=False
-#         flg_no_mean=True
-#         # initialize the polynomial model
-#         super(Poly_par_shared_GP, self).__init__(active_dims=active_dims, poly_deg=poly_deg,
-#                                                  sigma_n_init=sigma_n_init, flg_train_sigma_n=flg_train_sigma_n,
-#                                                  Sigma_function=Sigma_function, Sigma_f_additional_par_list=Sigma_f_additional_par_list,
-#                                                  Sigma_pos_par_init=None, flg_train_Sigma_pos_par=None,
-#                                                  Sigma_free_par_init=None, flg_train_Sigma_free_par=None,
-#                                                  flg_offset=flg_offset,
-#                                                  scale_init=scale_init, flg_train_scale=flg_train_scale,
-#                                                  name=name, dtype=dtype, sigma_n_num=sigma_n_num, device=device)
-#         # save the shared parameters
-#         if Sigma_pos_par_shared_init is None:
-#             self.Sigma_pos_par_shared = None
-#         else:
-#             self.Sigma_pos_par_shared = torch.nn.Parameter(torch.tensor(np.log(Sigma_pos_par_shared_init), dtype=self.dtype, device=self.device),
-#                                                                 requires_grad=flg_train_Sigma_pos_par)
-#         if Sigma_free_par_shared_init is None:
-#             self.Sigma_free_par_shared = None
-#         else:
-#             self.Sigma_free_par_shared = torch.nn.Parameter(torch.tensor(Sigma_free_par_shared_init, dtype=self.dtype, device=self.device),
-#                                                                  requires_grad=flg_train_Sigma_free_par)
-#         # save the indices that define the Sigma_pos_par and Sigma_free_par dependign on the output_channel
-#         self.Sigma_pos_par_indices_list = Sigma_pos_par_indices_list
-#         self.Sigma_free_par_indices_list = Sigma_free_par_indices_list
-
-
-#     def set_kernel_parameters(self, output_channel):
-#         """
-#         Funciton that sets self.sigma_pos_par and self.Sigma_free_par
-#         based on the output channel
-#         """
-#         if self.Sigma_pos_par_shared is None:
-#             self.Sigma_pos_par = None
-#         else:
-#             self.Sigma_pos_par = self.Sigma_pos_par_shared[self.Sigma_pos_par_indices_list[output_channel]]
-#         if self.Sigma_free_par_shared is None:
-#             self.Sigma_free_par = None
-#         else:
-#             self.Sigma_free_par = self.Sigma_free_par_shared[self.Sigma_free_par_indices_list[output_channel]]
-
-
-#     def print_model(self):
-#         """
-#         Print the model parameters
-#         """
-#         print(self.name+' parameters:')
-#         if self.Sigma_pos_par is not None:
-#             print('-', 'Sigma_pos_par', ':', self.Sigma_pos_par.data)
-#         if self.Sigma_free_par is not None:
-#             print('-', 'Sigma_free_par', ':', self.Sigma_free_par.data)
 
 
 def get_SOR_GP(exact_GP_object):
@@ -882,23 +692,7 @@ def get_Volterra_PK_GP(
     """
     # init the GP list
     gp_list = []
-    # # get the first order contribution (with noise)
-    # gp_list.append(Poly_GP(active_dims, poly_deg=1,
-    #                        sigma_n_init=sigma_n_init, flg_train_sigma_n=flg_train_sigma_n,
-    #                        Sigma_function=Sigma_function_list[0], Sigma_f_additional_par_list=Sigma_f_additional_par_list[0],
-    #                        Sigma_pos_par_init=Sigma_pos_par_init_list[0], flg_train_Sigma_pos_par=flg_train_Sigma_pos_par_list[0],
-    #                        Sigma_free_par_init=None, flg_train_Sigma_free_par=False,
-    #                        flg_offset=flg_offset,
-    #                        name=name+'_PK1', dtype=torch.float64, sigma_n_num=sigma_n_num, device=None))
-    # # get the higher order contributions
-    # for deg in range(1, poly_deg):
-    #     gp_list.append(Poly_GP(active_dims, poly_deg=deg+1,
-    #                            sigma_n_init=None, flg_train_sigma_n=False,
-    #                            Sigma_function=Sigma_function_list[deg], Sigma_f_additional_par_list=Sigma_f_additional_par_list[deg],
-    #                            Sigma_pos_par_init=Sigma_pos_par_init_list[deg], flg_train_Sigma_pos_par=flg_train_Sigma_pos_par_list[deg],
-    #                            flg_offset=False,
-    #                            name=name+'_PK'+str(deg+1), dtype=torch.float64, sigma_n_num=None, device=None))
-    # get the first order contribution (with noise)
+
     gp_list.append(
         Poly_GP(
             active_dims,

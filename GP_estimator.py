@@ -715,21 +715,21 @@ plt.show()
 # GET ENERGY ESTIMATES #
 print("\n\n----- GET ENERGY ESTIMATES -----")
 
-# compute actual energy
-Y_T_tr = 0.5 * np.array(
-    [(input_tr[i, vel_indices].T.dot(M_tr[i, :, :])).dot(input_tr[i, vel_indices]) for i in range(input_tr.shape[0])]
-).reshape(-1, 1)
-Y_T_test1 = 0.5 * np.array(
-    [
-        (input_test1[i, vel_indices].T.dot(M_test1[i, :, :])).dot(input_test1[i, vel_indices])
-        for i in range(input_test1.shape[0])
-    ]
-).reshape(-1, 1)
+# # compute actual energy
+# Y_T_tr = 0.5 * np.array(
+#     [(input_tr[i, vel_indices].T.dot(M_tr[i, :, :])).dot(input_tr[i, vel_indices]) for i in range(input_tr.shape[0])]
+# ).reshape(-1, 1)
+# Y_T_test1 = 0.5 * np.array(
+#     [
+#         (input_test1[i, vel_indices].T.dot(M_test1[i, :, :])).dot(input_test1[i, vel_indices])
+#         for i in range(input_test1.shape[0])
+#     ]
+# ).reshape(-1, 1)
 
-# get actual potential energy
-if "U" in data_frame_tr.columns:
-    U_tr = data_frame_tr["U"].to_numpy().reshape(-1, 1)
-    U_test1 = data_frame_test1["U"].to_numpy().reshape(-1, 1)
+# # get actual potential energy
+# if "U" in data_frame_tr.columns:
+#     U_tr = data_frame_tr["U"].to_numpy().reshape(-1, 1)
+#     U_test1 = data_frame_test1["U"].to_numpy().reshape(-1, 1)
 
 # get energy estimates
 with torch.no_grad():
@@ -752,56 +752,56 @@ if "U" in data_frame_tr.columns:
     U_offset_test1 = U_test1[0] - Y_U_test1_hat[0]
 
 
-print("\nKinetic energy training ", end="")
-Project_Utils.get_stat_estimate(Y=Y_T_tr, Y_hat=Y_T_tr_hat, stat_name="nMSE")
-print("\nKinetic energy test ", end="")
-Project_Utils.get_stat_estimate(Y=Y_T_test1, Y_hat=Y_T_test1_hat, stat_name="nMSE")
+# print("\nKinetic energy training ", end="")
+# Project_Utils.get_stat_estimate(Y=Y_T_tr, Y_hat=Y_T_tr_hat, stat_name="nMSE")
+# print("\nKinetic energy test ", end="")
+# Project_Utils.get_stat_estimate(Y=Y_T_test1, Y_hat=Y_T_test1_hat, stat_name="nMSE")
 
-if "U" in data_frame_tr.columns:
-    print("\nPotential energy training ", end="")
-    Project_Utils.get_stat_estimate(Y=U_tr - U_offset_tr, Y_hat=Y_U_tr_hat, stat_name="nMSE")
-    print("\nPotential energy test ", end="")
-    Project_Utils.get_stat_estimate(Y=U_test1 - U_offset_test1, Y_hat=Y_U_test1_hat, stat_name="nMSE")
+# if "U" in data_frame_tr.columns:
+#     print("\nPotential energy training ", end="")
+#     Project_Utils.get_stat_estimate(Y=U_tr - U_offset_tr, Y_hat=Y_U_tr_hat, stat_name="nMSE")
+#     print("\nPotential energy test ", end="")
+#     Project_Utils.get_stat_estimate(Y=U_test1 - U_offset_test1, Y_hat=Y_U_test1_hat, stat_name="nMSE")
 
-if "U" in data_frame_tr.columns:
-    U_true_tr = U_tr - U_offset_tr
-    L_true_tr = -U_tr + U_offset_tr + Y_T_tr
-else:
-    U_true_tr = None
-    L_true_tr = None
+# if "U" in data_frame_tr.columns:
+#     U_true_tr = U_tr - U_offset_tr
+#     L_true_tr = -U_tr + U_offset_tr + Y_T_tr
+# else:
+#     U_true_tr = None
+#     L_true_tr = None
 
-if "U" in data_frame_tr.columns:
-    U_true_test1 = U_test1 - U_offset_test1
-    L_true_test1 = -U_test1 + U_offset_test1 + Y_T_test1
-else:
-    U_true_test1 = None
-    L_true_test1 = None
+# if "U" in data_frame_tr.columns:
+#     U_true_test1 = U_test1 - U_offset_test1
+#     L_true_test1 = -U_test1 + U_offset_test1 + Y_T_test1
+# else:
+#     U_true_test1 = None
+#     L_true_test1 = None
 
-Project_Utils.plot_energy(
-    true_kin=Y_T_tr,
-    true_pot=U_true_tr,
-    true_lag=L_true_tr,
-    est_kin=Y_T_tr_hat,
-    est_pot=Y_U_tr_hat,
-    est_lag=Y_L_tr_hat,
-    title="Energy estimates on training trajectory",
-)
-Project_Utils.plot_energy(
-    true_kin=Y_T_test1,
-    true_pot=U_true_test1,
-    true_lag=L_true_test1,
-    est_kin=Y_T_test1_hat,
-    est_pot=Y_U_test1_hat,
-    est_lag=Y_L_test1_hat,
-    title="Energy estimates on test trajectory",
-)
-plt.show()
+# Project_Utils.plot_energy(
+#     true_kin=Y_T_tr,
+#     true_pot=U_true_tr,
+#     true_lag=L_true_tr,
+#     est_kin=Y_T_tr_hat,
+#     est_pot=Y_U_tr_hat,
+#     est_lag=Y_L_tr_hat,
+#     title="Energy estimates on training trajectory",
+# )
+# Project_Utils.plot_energy(
+#     true_kin=Y_T_test1,
+#     true_pot=U_true_test1,
+#     true_lag=L_true_test1,
+#     est_kin=Y_T_test1_hat,
+#     est_pot=Y_U_test1_hat,
+#     est_lag=Y_L_test1_hat,
+#     title="Energy estimates on test trajectory",
+# )
+# plt.show()
 
 
-if flg_frict and friction_model == "linear":
-    print("\nFriction parameters estimation:")
-    w_friction_list = m.get_friction_parameters(
-        X_tr=torch.tensor(input_tr[::downsampling], dtype=dtype, device=device), alpha=alpha_tr
-    )
-    for joint_index in range(num_dof):
-        print("Joint " + str(joint_index + 1) + " friction:", w_friction_list[joint_index])
+# if flg_frict and friction_model == "linear":
+#     print("\nFriction parameters estimation:")
+#     w_friction_list = m.get_friction_parameters(
+#         X_tr=torch.tensor(input_tr[::downsampling], dtype=dtype, device=device), alpha=alpha_tr
+#     )
+#     for joint_index in range(num_dof):
+#         print("Joint " + str(joint_index + 1) + " friction:", w_friction_list[joint_index])
