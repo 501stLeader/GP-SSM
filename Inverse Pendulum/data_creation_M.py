@@ -281,20 +281,20 @@ def animate_pendulum(t_vec, x_vec, theta_vec_sim, anim_params, dt):
     plt.show()
 
 
-# --- CSV Data Preparation Function ---
-# MODIFIED: Takes wrapped angle, uses specific column name
+
 def prepare_csv_dict(t_subset, x_subset, x_dot_subset, theta_wrapped_rad_subset, omega_subset,
-                     x_dot_dot_subset, omega_dot_subset, F_subset, mass_matrix_subset):
+                     x_dot_dot_subset, omega_dot_subset, F_subset,tau_subset, mass_matrix_subset):
      """Prepares a dictionary suitable for saving time-series data to CSV."""
      csv_subset_dict = {
-         'time_s': t_subset,
-         'cart_pos_m': x_subset,
-         'cart_vel_mps': x_dot_subset,
-         'pendulum_angle_wrapped_rad': theta_wrapped_rad_subset, # Use wrapped angle
-         'pendulum_ang_vel_radps': omega_subset,
-         'cart_accel_mps2': x_dot_dot_subset,
-         'pendulum_ang_accel_radps2': omega_dot_subset,
-         'applied_force_N': F_subset,
+         't': t_subset,
+         'q_1': x_subset,
+         'dq_1': x_dot_subset,
+         'q2': theta_wrapped_rad_subset, # Use wrapped angle
+         'dq2': omega_subset,
+         'ddq1': x_dot_dot_subset,
+         'ddq2': omega_dot_subset,
+         'output_1': F_subset,
+         'output_2': tau_subset,
          'mass_matrix_11': mass_matrix_subset[:, 0, 0],
          'mass_matrix_12': mass_matrix_subset[:, 0, 1], # M_12 = M_21
          'mass_matrix_22': mass_matrix_subset[:, 1, 1]
@@ -317,17 +317,15 @@ def main():
     parser.add_argument('--force-sines', type=int, default=5, help='Number of sinusoids in force profile.')
     parser.add_argument('--force-max-amp', type=float, default=10.0, help='Max total amplitude for force profile.')
     parser.add_argument('--force-max-freq', type=float, default=1.5, help='Max frequency (Hz) for force profile.')
-    # CLARIFIED help text for theta convention
     parser.add_argument('--init-theta-deg', type=float, default=170.0, help='Initial pendulum angle in degrees (0=down, 180=up).')
     parser.add_argument('--split', action='store_true', help='Perform train-test split (80/20) and save.')
     parser.add_argument('--test-size', type=float, default=0.2, help='Fraction of data for the test set.')
-    # Added option for separate PKL file for mass matrix
     parser.add_argument('--save-mass-matrix-pkl', action='store_true', help='Save the mass matrix sequence to a separate PKL file.')
 
 
     args = parser.parse_args()
 
-    # --- Create Save Directory ---
+    # Create Save Directory
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
         print(f"Created save directory: {args.save_dir}")
@@ -350,9 +348,7 @@ def main():
     m = 0.5   # Mass of the pendulum bob (kg)
     l = 0.6   # Length of the pendulum rod (m) - Used in simulation & animation
     g = 9.81  # Gravity (m/s^2)
-    sim_params = {'M': M, 'm': m, 'l': l, 'g': g}
-
-    # --- Animation Parameters --- (Make consistent with simulation)
+        # --- Animation Parameters --- (Make consistent with simulation)
     anim_params = {
         'l': l,            # Use same pendulum length
         'cart_w': l * 0.6,  # Example: cart width relative to pendulum length
