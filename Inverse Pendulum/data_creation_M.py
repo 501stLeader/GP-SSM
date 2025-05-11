@@ -25,14 +25,7 @@ def save_mass_matrix_standalone(mass_matrix_data, base_filename_pkl, base_filena
         print(f"Warning: Mass matrix data is None. Skipping save for {base_filename_pkl} and {base_filename_csv}.")
         return
 
-    # Save to PKL
-    try:
-        with open(base_filename_pkl, 'wb') as f:
-            pickle.dump(mass_matrix_data, f)
-        print(f"Mass matrix saved to '{base_filename_pkl}'.")
-    except Exception as e:
-        print(f"Error saving mass matrix to PKL {base_filename_pkl}: {e}")
-
+ 
     # Save to CSV
     if PANDAS_AVAILABLE:
         if mass_matrix_data.ndim == 3 and mass_matrix_data.shape[1:] == (2, 2):
@@ -46,26 +39,36 @@ def save_mass_matrix_standalone(mass_matrix_data, base_filename_pkl, base_filena
                 df = pd.DataFrame(df_data)
                 df.to_csv(base_filename_csv, index=False, float_format='%.6f')
                 print(f"Mass matrix saved to '{base_filename_csv}'.")
+                df.to_pickle(base_filename_pkl)
+                print(f"Mass matrix saved to '{base_filename_pkl}'.")
             except Exception as e:
                 print(f"Error saving mass matrix to CSV {base_filename_csv}: {e}")
         else:
             print(f"Warning: Unexpected mass matrix shape {mass_matrix_data.shape} for CSV saving. Skipping CSV save for {base_filename_csv}.")
     else:
         print(f"Warning: pandas not installed. Mass matrix CSV file '{base_filename_csv}' could not be saved.")
+#    # Save to PKL
+#     try:
+#         with open(base_filename_pkl, 'wb') as f:
+#             pickle.dump(mass_matrix_data, f)
+#         print(f"Mass matrix saved to '{base_filename_pkl}'.")
+#     except Exception as e:
+#         print(f"Error saving mass matrix to PKL {base_filename_pkl}: {e}")
 
+    
 def save_gravity_vector_standalone(gravity_vector_data, base_filename_pkl, base_filename_csv):
     """Saves the gravity vector data to separate PKL and CSV files."""
     if gravity_vector_data is None:
         print(f"Warning: Gravity vector data is None. Skipping save for {base_filename_pkl} and {base_filename_csv}.")
         return
 
-    # Save to PKL
-    try:
-        with open(base_filename_pkl, 'wb') as f:
-            pickle.dump(gravity_vector_data, f)
-        print(f"Gravity vector saved to '{base_filename_pkl}'.")
-    except Exception as e:
-        print(f"Error saving gravity vector to PKL {base_filename_pkl}: {e}")
+    # # Save to PKL
+    # try:
+    #     with open(base_filename_pkl, 'wb') as f:
+    #         pickle.dump(gravity_vector_data, f)
+    #     print(f"Gravity vector saved to '{base_filename_pkl}'.")
+    # except Exception as e:
+    #     print(f"Error saving gravity vector to PKL {base_filename_pkl}: {e}")
 
     # Save to CSV
     if PANDAS_AVAILABLE:
@@ -78,6 +81,8 @@ def save_gravity_vector_standalone(gravity_vector_data, base_filename_pkl, base_
                 df = pd.DataFrame(df_data)
                 df.to_csv(base_filename_csv, index=False, float_format='%.6f')
                 print(f"Gravity vector saved to '{base_filename_csv}'.")
+                df.to_pickle(base_filename_pkl)
+                print(f"Gravity vector saved to '{base_filename_pkl}'.")
             except Exception as e:
                 print(f"Error saving gravity vector to CSV {base_filename_csv}: {e}")
         else:

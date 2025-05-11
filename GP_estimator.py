@@ -1,9 +1,19 @@
+# Copyright (C) 2024 Mitsubishi Electric Research Laboratories (MERL)
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+"""
+Script file for LK estimation
+Author: Alberto Dalla Libera (alberto.dallalibera.1@gmail.com)
+        Giulio Giacomuzzo (giulio.giacomuzzo@gmail.com)
+        Diego Romeres (romeres@merl.com)
+"""
+
 import argparse
 import configparser
 import pickle as pkl
 import time
-import matplotlib
-matplotlib.use('TkAgg')
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -98,8 +108,8 @@ print("\n\n----- SET FILE NAME -----")
 # loading path
 tr_path = data_path + file_name_1
 test1_path = data_path + file_name_2
-# M_tr_path = data_path + file_name_m1
-# M_test1_path = data_path + file_name_m2
+M_tr_path = data_path + file_name_m1
+M_test1_path = data_path + file_name_m2
 
 # saving and loading path
 model_saving_path = saving_path + "model_" + model_name + ".pt"
@@ -523,10 +533,10 @@ if "RBF_1" in model_name:
 print("\n\n----- GET INERTIA MATRIX ESTIMATES -----")
 
 # load inertia matrix
-# M_tr = pkl.load(open(M_tr_path, "rb"))
-# M_test1 = pkl.load(open(M_test1_path, "rb"))
-# M_tr = np.stack(M_tr[::downsampling_data_load], axis=0)[:num_dat_tr]
-# M_test1 = np.stack(M_test1[::downsampling_data_load], axis=0)
+M_tr = pkl.load(open(M_tr_path, "rb"))
+M_test1 = pkl.load(open(M_test1_path, "rb"))
+M_tr = np.stack(M_tr[::downsampling_data_load], axis=0)[:num_dat_tr]
+M_test1 = np.stack(M_test1[::downsampling_data_load], axis=0)
 
 # compute inertia matrix estimates
 with torch.no_grad():
@@ -596,13 +606,13 @@ with torch.no_grad():
 
 # mean square error
 # err_M_tr = np.mean(np.sqrt((M_tr-M_tr_hat)**2), axis=(1,2))
-#err_M_tr_ = np.mean(np.sqrt((M_tr - M_tr_hat_) ** 2), axis=(1, 2))
+err_M_tr_ = np.mean(np.sqrt((M_tr - M_tr_hat_) ** 2), axis=(1, 2))
 # print('\nTraining mean MSE: ',np.mean(err_M_tr))
-# print("Training mean MSE kin: ", np.mean(err_M_tr_))
+print("Training mean MSE kin: ", np.mean(err_M_tr_))
 # err_M_test1 = np.mean(np.sqrt((M_test1-M_test1_hat)**2), axis=(1,2))
-# err_M_test1_ = np.mean(np.sqrt((M_test1 - M_test1_hat_) ** 2), axis=(1, 2))
+err_M_test1_ = np.mean(np.sqrt((M_test1 - M_test1_hat_) ** 2), axis=(1, 2))
 # print('\nTest mean MSE: ',np.mean(err_M_test1))
-# print("Test mean MSE kin: ", np.mean(err_M_test1_))
+print("Test mean MSE kin: ", np.mean(err_M_test1_))
 
 # check simmetry
 symm_err_tr = M_tr_hat_ - np.transpose(M_tr_hat_, axes=(0, 2, 1))
@@ -625,101 +635,101 @@ print(
     M_test1_hat_.shape[0] - simm_mismatches_test1,
 )
 
-# # check positivity
-# eig_tr, _ = np.linalg.eig(M_tr)
-# # eig_tr_hat, _  = np.linalg.eig(M_tr_hat)
-# eig_tr_hat_, _ = np.linalg.eig(M_tr_hat_)
-# eig_test1, _ = np.linalg.eig(M_test1)
-# # eig_test1_hat, _  = np.linalg.eig(M_test1_hat)
-# eig_test1_hat_, _ = np.linalg.eig(M_test1_hat_)
-# non_positive_def_count_tr = np.sum(np.min(eig_tr_hat_, 1) <= 0)
-# non_positive_def_count_test1 = np.sum(np.min(eig_test1_hat_, 1) <= 0)
-# print("Number of training samples with non-positive inertia: ", non_positive_def_count_tr)
-# print("Number of test samples with non-positive inertia: ", non_positive_def_count_test1)
+# check positivity
+eig_tr, _ = np.linalg.eig(M_tr)
+# eig_tr_hat, _  = np.linalg.eig(M_tr_hat)
+eig_tr_hat_, _ = np.linalg.eig(M_tr_hat_)
+eig_test1, _ = np.linalg.eig(M_test1)
+# eig_test1_hat, _  = np.linalg.eig(M_test1_hat)
+eig_test1_hat_, _ = np.linalg.eig(M_test1_hat_)
+non_positive_def_count_tr = np.sum(np.min(eig_tr_hat_, 1) <= 0)
+non_positive_def_count_test1 = np.sum(np.min(eig_test1_hat_, 1) <= 0)
+print("Number of training samples with non-positive inertia: ", non_positive_def_count_tr)
+print("Number of test samples with non-positive inertia: ", non_positive_def_count_test1)
 
-# plot MSE
-Project_Utils.plot_list([err_M_tr_, err_M_test1_], ["Training inertias MSE", "Test inertias MSE"], ["Training", "Test"])
+# # plot MSE
+# Project_Utils.plot_list([err_M_tr_, err_M_test1_], ["Training inertias MSE", "Test inertias MSE"], ["Training", "Test"])
+# # plt.show()
+
+# # plot eigenvals
+# Project_Utils.plot_eigenvals(
+#     [np.sort(eig_tr), np.sort(eig_tr_hat_)],
+#     colors=["k", "r"],
+#     labels=["True", "Estimated"],
+#     title="Training eigenvalues",
+# )
+# Project_Utils.plot_eigenvals(
+#     [np.sort(eig_test1), np.sort(eig_test1_hat_)],
+#     colors=["k", "r"],
+#     labels=["True", "Estimated"],
+#     title="Test eigenvalues",
+# )
+# # plt.show()
+
+
+# # plot diagonal elements of M
+# n_rows = int(np.ceil(num_dof / 2))
+# plt.figure()
+# plt.suptitle("Training inertias diag elements")
+# for i in range(num_dof):
+#     plt.subplot(n_rows, 2, i + 1)
+#     plt.ylabel("$M_{" + str(i + 1) + str(i + 1) + "}$")
+#     plt.plot(M_tr[:, i, i], label="true")
+#     plt.plot(M_tr_hat_[:, i, i], label="estimated")
+#     plt.grid()
+#     plt.legend()
+
+# plt.figure()
+# plt.suptitle("Test inertias diag elements")
+# for i in range(num_dof):
+#     plt.subplot(n_rows, 2, i + 1)
+#     plt.ylabel("$M_{" + str(i + 1) + str(i + 1) + "}$")
+#     plt.plot(M_test1[:, i, i], label="true")
+#     plt.plot(M_test1_hat_[:, i, i], label="estimated")
+#     plt.grid()
+#     plt.legend()
+
+# # plot determinant of principal minors of M
+# plt.figure()
+# plt.suptitle("Training inertias det of principal minors")
+# for i in range(num_dof):
+#     plt.subplot(n_rows, 2, i + 1)
+#     plt.ylabel("$det(M_{" + str(i + 1) + str(i + 1) + "})$")
+#     plt.plot(np.linalg.det(M_tr[:, : i + 1, : i + 1]), label="true")
+#     plt.plot(np.linalg.det(M_tr_hat_[:, : i + 1, : i + 1]), label="estimated")
+#     plt.grid()
+#     plt.legend()
+
+# plt.figure()
+# plt.suptitle("Test inertias det of principal minors")
+# for i in range(num_dof):
+#     plt.subplot(n_rows, 2, i + 1)
+#     plt.ylabel("$det(M_{" + str(i + 1) + str(i + 1) + "})$")
+#     plt.plot(np.linalg.det(M_test1[:, : i + 1, : i + 1]), label="true")
+#     plt.plot(np.linalg.det(M_test1_hat_[:, : i + 1, : i + 1]), label="estimated")
+#     plt.grid()
+#     plt.legend()
+
 # plt.show()
-
-# plot eigenvals
-Project_Utils.plot_eigenvals(
-    [np.sort(eig_tr), np.sort(eig_tr_hat_)],
-    colors=["k", "r"],
-    labels=["True", "Estimated"],
-    title="Training eigenvalues",
-)
-Project_Utils.plot_eigenvals(
-    [np.sort(eig_test1), np.sort(eig_test1_hat_)],
-    colors=["k", "r"],
-    labels=["True", "Estimated"],
-    title="Test eigenvalues",
-)
-# plt.show()
-
-
-# plot diagonal elements of M
-n_rows = int(np.ceil(num_dof / 2))
-plt.figure()
-plt.suptitle("Training inertias diag elements")
-for i in range(num_dof):
-    plt.subplot(n_rows, 2, i + 1)
-    plt.ylabel("$M_{" + str(i + 1) + str(i + 1) + "}$")
-    plt.plot(M_tr[:, i, i], label="true")
-    plt.plot(M_tr_hat_[:, i, i], label="estimated")
-    plt.grid()
-    plt.legend()
-
-plt.figure()
-plt.suptitle("Test inertias diag elements")
-for i in range(num_dof):
-    plt.subplot(n_rows, 2, i + 1)
-    plt.ylabel("$M_{" + str(i + 1) + str(i + 1) + "}$")
-    plt.plot(M_test1[:, i, i], label="true")
-    plt.plot(M_test1_hat_[:, i, i], label="estimated")
-    plt.grid()
-    plt.legend()
-
-# plot determinant of principal minors of M
-plt.figure()
-plt.suptitle("Training inertias det of principal minors")
-for i in range(num_dof):
-    plt.subplot(n_rows, 2, i + 1)
-    plt.ylabel("$det(M_{" + str(i + 1) + str(i + 1) + "})$")
-    plt.plot(np.linalg.det(M_tr[:, : i + 1, : i + 1]), label="true")
-    plt.plot(np.linalg.det(M_tr_hat_[:, : i + 1, : i + 1]), label="estimated")
-    plt.grid()
-    plt.legend()
-
-plt.figure()
-plt.suptitle("Test inertias det of principal minors")
-for i in range(num_dof):
-    plt.subplot(n_rows, 2, i + 1)
-    plt.ylabel("$det(M_{" + str(i + 1) + str(i + 1) + "})$")
-    plt.plot(np.linalg.det(M_test1[:, : i + 1, : i + 1]), label="true")
-    plt.plot(np.linalg.det(M_test1_hat_[:, : i + 1, : i + 1]), label="estimated")
-    plt.grid()
-    plt.legend()
-
-plt.show()
 
 # GET ENERGY ESTIMATES #
 print("\n\n----- GET ENERGY ESTIMATES -----")
 
-# # compute actual energy
-# Y_T_tr = 0.5 * np.array(
-#     [(input_tr[i, vel_indices].T.dot(M_tr[i, :, :])).dot(input_tr[i, vel_indices]) for i in range(input_tr.shape[0])]
-# ).reshape(-1, 1)
-# Y_T_test1 = 0.5 * np.array(
-#     [
-#         (input_test1[i, vel_indices].T.dot(M_test1[i, :, :])).dot(input_test1[i, vel_indices])
-#         for i in range(input_test1.shape[0])
-#     ]
-# ).reshape(-1, 1)
+# compute actual energy
+Y_T_tr = 0.5 * np.array(
+    [(input_tr[i, vel_indices].T.dot(M_tr[i, :, :])).dot(input_tr[i, vel_indices]) for i in range(input_tr.shape[0])]
+).reshape(-1, 1)
+Y_T_test1 = 0.5 * np.array(
+    [
+        (input_test1[i, vel_indices].T.dot(M_test1[i, :, :])).dot(input_test1[i, vel_indices])
+        for i in range(input_test1.shape[0])
+    ]
+).reshape(-1, 1)
 
-# # get actual potential energy
-# if "U" in data_frame_tr.columns:
-#     U_tr = data_frame_tr["U"].to_numpy().reshape(-1, 1)
-#     U_test1 = data_frame_test1["U"].to_numpy().reshape(-1, 1)
+# get actual potential energy
+if "U" in data_frame_tr.columns:
+    U_tr = data_frame_tr["U"].to_numpy().reshape(-1, 1)
+    U_test1 = data_frame_test1["U"].to_numpy().reshape(-1, 1)
 
 # get energy estimates
 with torch.no_grad():
@@ -742,30 +752,30 @@ if "U" in data_frame_tr.columns:
     U_offset_test1 = U_test1[0] - Y_U_test1_hat[0]
 
 
-# print("\nKinetic energy training ", end="")
-# Project_Utils.get_stat_estimate(Y=Y_T_tr, Y_hat=Y_T_tr_hat, stat_name="nMSE")
-# print("\nKinetic energy test ", end="")
-# Project_Utils.get_stat_estimate(Y=Y_T_test1, Y_hat=Y_T_test1_hat, stat_name="nMSE")
+print("\nKinetic energy training ", end="")
+Project_Utils.get_stat_estimate(Y=Y_T_tr, Y_hat=Y_T_tr_hat, stat_name="nMSE")
+print("\nKinetic energy test ", end="")
+Project_Utils.get_stat_estimate(Y=Y_T_test1, Y_hat=Y_T_test1_hat, stat_name="nMSE")
 
-# if "U" in data_frame_tr.columns:
-#     print("\nPotential energy training ", end="")
-#     Project_Utils.get_stat_estimate(Y=U_tr - U_offset_tr, Y_hat=Y_U_tr_hat, stat_name="nMSE")
-#     print("\nPotential energy test ", end="")
-#     Project_Utils.get_stat_estimate(Y=U_test1 - U_offset_test1, Y_hat=Y_U_test1_hat, stat_name="nMSE")
+if "U" in data_frame_tr.columns:
+    print("\nPotential energy training ", end="")
+    Project_Utils.get_stat_estimate(Y=U_tr - U_offset_tr, Y_hat=Y_U_tr_hat, stat_name="nMSE")
+    print("\nPotential energy test ", end="")
+    Project_Utils.get_stat_estimate(Y=U_test1 - U_offset_test1, Y_hat=Y_U_test1_hat, stat_name="nMSE")
 
-# if "U" in data_frame_tr.columns:
-#     U_true_tr = U_tr - U_offset_tr
-#     L_true_tr = -U_tr + U_offset_tr + Y_T_tr
-# else:
-#     U_true_tr = None
-#     L_true_tr = None
+if "U" in data_frame_tr.columns:
+    U_true_tr = U_tr - U_offset_tr
+    L_true_tr = -U_tr + U_offset_tr + Y_T_tr
+else:
+    U_true_tr = None
+    L_true_tr = None
 
-# if "U" in data_frame_tr.columns:
-#     U_true_test1 = U_test1 - U_offset_test1
-#     L_true_test1 = -U_test1 + U_offset_test1 + Y_T_test1
-# else:
-#     U_true_test1 = None
-#     L_true_test1 = None
+if "U" in data_frame_tr.columns:
+    U_true_test1 = U_test1 - U_offset_test1
+    L_true_test1 = -U_test1 + U_offset_test1 + Y_T_test1
+else:
+    U_true_test1 = None
+    L_true_test1 = None
 
 # Project_Utils.plot_energy(
 #     true_kin=Y_T_tr,
@@ -788,10 +798,10 @@ if "U" in data_frame_tr.columns:
 # plt.show()
 
 
-# if flg_frict and friction_model == "linear":
-#     print("\nFriction parameters estimation:")
-#     w_friction_list = m.get_friction_parameters(
-#         X_tr=torch.tensor(input_tr[::downsampling], dtype=dtype, device=device), alpha=alpha_tr
-#     )
-#     for joint_index in range(num_dof):
-#         print("Joint " + str(joint_index + 1) + " friction:", w_friction_list[joint_index])
+if flg_frict and friction_model == "linear":
+    print("\nFriction parameters estimation:")
+    w_friction_list = m.get_friction_parameters(
+        X_tr=torch.tensor(input_tr[::downsampling], dtype=dtype, device=device), alpha=alpha_tr
+    )
+    for joint_index in range(num_dof):
+        print("Joint " + str(joint_index + 1) + " friction:", w_friction_list[joint_index])
