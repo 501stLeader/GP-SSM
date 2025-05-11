@@ -1,6 +1,8 @@
 # %% Modifiziertes create_data.py
 import numpy as np
 from scipy.integrate import solve_ivp
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation # For animation
 import matplotlib.patches as patches     # For drawing shapes
@@ -311,7 +313,7 @@ def main():
     parser.add_argument('--no-plot', action='store_true', help='Skip static plotting.')
     parser.add_argument('--animate', action='store_true', help='Show pendulum animation.')
     parser.add_argument('--save-dir', type=str, default='pendulum_data', help='Directory to save output files.')
-    parser.add_argument('--base-filename', type=str, default='inv_pendulum_forced', help='Base name for output files (NPZ, CSV, PKL, splits).')
+    parser.add_argument('--base-filename', type=str, default='forced_pendulum_data', help='Base name for output files (NPZ, CSV, PKL, splits).')
     parser.add_argument('--duration', type=float, default=20.0, help='Simulation duration (seconds).')
     parser.add_argument('--dt', type=float, default=0.02, help='Simulation time step (seconds).')
     parser.add_argument('--force-sines', type=int, default=5, help='Number of sinusoids in force profile.')
@@ -430,6 +432,7 @@ def main():
         x_dot_dot = np.zeros(num_points)
         omega_dot = np.zeros(num_points)
         F_applied = np.zeros(num_points)
+        tau_applied = np.zeros(num_points)
         mass_matrix_seq = np.zeros((num_points, 2, 2))
         for i in range(num_points):
             derivs = inverse_pendulum_dynamics_forced(t[i], q[i, :], M, m, l, g, force_profile)
@@ -465,7 +468,9 @@ def main():
             try:
                 # Use the helper function for CSV dict, passing the WRAPPED angle
                 full_csv_dict = prepare_csv_dict(t, x, x_dot, theta_sim_wrapped, omega,
-                                                  x_dot_dot, omega_dot, F_applied, mass_matrix_seq)
+                                 x_dot_dot, omega_dot, F_applied,
+                                 tau_applied,  # Pass the newly created zero torque array
+                                 mass_matrix_seq) # Pass the mass matrix sequence correctly
                 df = pd.DataFrame(full_csv_dict)
                 df.to_csv(full_csv_filename, index=False, float_format='%.6f')
                 print(f"Full simulation data also saved to '{full_csv_filename}'.")
@@ -485,82 +490,106 @@ def main():
         print(f"Performing train-test split ({1-args.test_size:.0%}/{args.test_size:.0%})...")
         # Check if data is available and theta_sim_wrapped is calculated
         required_vars = ['t', 'x', 'x_dot', 'theta_sim', 'theta_sim_wrapped', 'omega',
-                         'x_dot_dot', 'omega_dot', 'F_applied', 'mass_matrix_seq']
-        if not all(v in locals() and locals()[v] is not None for v in required_vars) or \
-           not all(locals()[arr_name].shape[0] == t.shape[0] for arr_name in required_vars if isinstance(locals()[arr_name], np.ndarray)):
-             print("Error: Data arrays missing, mismatched lengths, or wrapped angle not calculated. Aborting split.")
-        else:
-            try:
-                indices = np.arange(t.shape[0])
-                train_indices, test_indices = train_test_split(indices, test_size=args.test_size, shuffle=False)
+                         'x_dot_dot', 'omega_dot', 'F_applied','tau_applied', 'mass_matrix_seq']
+        # --- BEGIN DEBUG ---
+        print("\nDebug: Checking variables before split:")
+        for var_name_debug in required_vars:
+            if var_name_debug in locals():
+                var_val_debug = locals()[var_name_debug]
+                print(f"  Variable: {var_name_debug}, Type: {type(var_val_debug)}, Is None: {var_val_debug is None}")
+                if isinstance(var_val_debug, np.ndarray):
+                    # Ensure t is available and is an array for comparison
+                    t_shape_info = "t not available or not an array"
+                    if 't' in locals() and isinstance(locals()['t'], np.ndarray):
+                        t_shape_info = f"{locals()['t'].shape[0]}"
+                        if var_val_debug.shape[0] != locals()['t'].shape[0]:
+                            print(f"    !!!! MISMATCH with t for {var_name_debug}: {var_val_debug.shape[0]} vs t_len={t_shape_info} !!!!")
+                        else:
+                            print(f"    Shape: {var_val_debug.shape}, Length of t: {t_shape_info} (match)")
+                    else:
+                            print(f"    Shape: {var_val_debug.shape}, (Cannot compare with t: {t_shape_info})")
 
-                # --- Prepare Split Data Dictionaries (including wrapped angle) ---
-                def prepare_split_dict(subset_indices):
-                    data_dict = {
-                        't': t[subset_indices],
-                        'x': x[subset_indices],
-                        'x_dot': x_dot[subset_indices],
-                        'theta': theta_sim[subset_indices], # Raw angle
-                        'theta_wrapped': theta_sim_wrapped[subset_indices], # Wrapped angle
-                        'omega': omega[subset_indices],
-                        'x_dot_dot': x_dot_dot[subset_indices],
-                        'omega_dot': omega_dot[subset_indices],
-                        'F': F_applied[subset_indices],
-                        'mass_matrix': mass_matrix_seq[subset_indices],
-                        # Add scalar parameters here for PKL/NPZ saving convenience
-                        'dt': dt, 'M': M, 'm': m, 'l': l, 'g': g
-                    }
-                    return data_dict
+            else:
+                print(f"  Variable: {var_name_debug} NOT IN LOCALS")
+        print("--- END DEBUG ---\n")
+        try:
+            indices = np.arange(t.shape[0])
+            train_indices, test_indices = train_test_split(indices, test_size=args.test_size, shuffle=False)
 
-                # --- Process Training Data ---
-                print("Processing training data...")
-                train_data = prepare_split_dict(train_indices)
-                np.savez(train_npz_filename, **train_data) # NPZ saves everything in dict
-                print(f"Training data saved to '{train_npz_filename}'")
-                try: # PKL
-                    with open(train_pkl_filename, 'wb') as f: pickle.dump(train_data, f)
-                    print(f"Training data saved to '{train_pkl_filename}'")
-                except Exception as e: print(f"Error saving training data to PKL {train_pkl_filename}: {e}")
-                if PANDAS_AVAILABLE: # CSV
-                    try:
-                        # Use helper function, extracting required arrays from train_data
-                        train_csv_dict = prepare_csv_dict(
-                            train_data['t'], train_data['x'], train_data['x_dot'],
-                            train_data['theta_wrapped'], # Pass wrapped angle
-                            train_data['omega'], train_data['x_dot_dot'],
-                            train_data['omega_dot'], train_data['F'], train_data['mass_matrix']
-                        )
-                        df_train = pd.DataFrame(train_csv_dict)
-                        df_train.to_csv(train_csv_filename, index=False, float_format='%.6f')
-                        print(f"Training data saved to '{train_csv_filename}'")
-                    except Exception as e: print(f"Error saving training data to CSV {train_csv_filename}: {e}")
-                else: print("Warning: pandas not installed. Training CSV file could not be saved.")
+            # --- Prepare Split Data Dictionaries (including wrapped angle) ---
+            def prepare_split_dict(subset_indices):
+                data_dict = {
+                    't': t[subset_indices],
+                    'x': x[subset_indices],
+                    'x_dot': x_dot[subset_indices],
+                    'theta': theta_sim[subset_indices], # Raw angle
+                    'theta_wrapped': theta_sim_wrapped[subset_indices], # Wrapped angle
+                    'omega': omega[subset_indices],
+                    'x_dot_dot': x_dot_dot[subset_indices],
+                    'omega_dot': omega_dot[subset_indices],
+                    'F': F_applied[subset_indices],
+                    'mass_matrix': mass_matrix_seq[subset_indices],
+                    # Add scalar parameters here for PKL/NPZ saving convenience
+                    'dt': dt, 'M': M, 'm': m, 'l': l, 'g': g
+                }
+                return data_dict
 
-                # --- Process Test Data ---
-                print("Processing test data...")
-                test_data = prepare_split_dict(test_indices)
-                np.savez(test_npz_filename, **test_data) # NPZ
-                print(f"Test data saved to '{test_npz_filename}'")
-                try: # PKL
-                    with open(test_pkl_filename, 'wb') as f: pickle.dump(test_data, f)
-                    print(f"Test data saved to '{test_pkl_filename}'")
-                except Exception as e: print(f"Error saving test data to PKL {test_pkl_filename}: {e}")
-                if PANDAS_AVAILABLE: # CSV
-                    try:
-                        test_csv_dict = prepare_csv_dict(
-                            test_data['t'], test_data['x'], test_data['x_dot'],
-                            test_data['theta_wrapped'], # Pass wrapped angle
-                            test_data['omega'], test_data['x_dot_dot'],
-                            test_data['omega_dot'], test_data['F'], test_data['mass_matrix']
-                        )
-                        df_test = pd.DataFrame(test_csv_dict)
-                        df_test.to_csv(test_csv_filename, index=False, float_format='%.6f')
-                        print(f"Test data saved to '{test_csv_filename}'")
-                    except Exception as e: print(f"Error saving test data to CSV {test_csv_filename}: {e}")
-                else: print("Warning: pandas not installed. Test CSV file could not be saved.")
+            # --- Process Training Data ---
+            print("Processing training data...")
+            train_data = prepare_split_dict(train_indices)
+            np.savez(train_npz_filename, **train_data) # NPZ saves everything in dict
+            print(f"Training data saved to '{train_npz_filename}'")
+            try: # PKL
+                with open(train_pkl_filename, 'wb') as f: pickle.dump(train_data, f)
+                print(f"Training data saved to '{train_pkl_filename}'")
+            except Exception as e: print(f"Error saving training data to PKL {train_pkl_filename}: {e}")
+            if PANDAS_AVAILABLE: # CSV
+                try:
+                    # Use helper function, extracting required arrays from train_data
+                    tau_train_subset = np.zeros_like(train_data['t']) # Create zero torque for train subset
+                    train_csv_dict = prepare_csv_dict(
+                        train_data['t'], train_data['x'], train_data['x_dot'],
+                        train_data['theta_wrapped'], # Pass wrapped angle
+                        train_data['omega'], train_data['x_dot_dot'],
+                        train_data['omega_dot'], train_data['F'],
+                        tau_train_subset,          # Pass zero torque for train subset
+                        train_data['mass_matrix']  # This is the mass_matrix_subset for training
+                    )
+                    df_train = pd.DataFrame(train_csv_dict)
+                    df_train.to_csv(train_csv_filename, index=False, float_format='%.6f')
+                    print(f"Training data saved to '{train_csv_filename}'")
+                except Exception as e: print(f"Error saving training data to CSV {train_csv_filename}: {e}")
+            else: print("Warning: pandas not installed. Training CSV file could not be saved.")
 
-            except Exception as e:
-                 print(f"Error during train-test split or saving: {e}")
+            # --- Process Test Data ---
+            print("Processing test data...")
+            test_data = prepare_split_dict(test_indices)
+            np.savez(test_npz_filename, **test_data) # NPZ
+            print(f"Test data saved to '{test_npz_filename}'")
+            try: # PKL
+                with open(test_pkl_filename, 'wb') as f: pickle.dump(test_data, f)
+                print(f"Test data saved to '{test_pkl_filename}'")
+            except Exception as e: print(f"Error saving test data to PKL {test_pkl_filename}: {e}")
+            if PANDAS_AVAILABLE: # CSV
+                try:
+                    # After:
+                    tau_test_subset = np.zeros_like(test_data['t']) # Create zero torque for test subset
+                    test_csv_dict = prepare_csv_dict(
+                        test_data['t'], test_data['x'], test_data['x_dot'],
+                        test_data['theta_wrapped'], # Pass wrapped angle
+                        test_data['omega'], test_data['x_dot_dot'],
+                        test_data['omega_dot'], test_data['F'],
+                        tau_test_subset,            # Pass zero torque for test subset
+                        test_data['mass_matrix']    # This is the mass_matrix_subset for testing
+                    )
+                    df_test = pd.DataFrame(test_csv_dict)
+                    df_test.to_csv(test_csv_filename, index=False, float_format='%.6f')
+                    print(f"Test data saved to '{test_csv_filename}'")
+                except Exception as e: print(f"Error saving test data to CSV {test_csv_filename}: {e}")
+            else: print("Warning: pandas not installed. Test CSV file could not be saved.")
+
+        except Exception as e:
+                print(f"Error during train-test split or saving: {e}")
 
     # --- Plotting / Animation ---
     plot_requested = not args.no_plot
