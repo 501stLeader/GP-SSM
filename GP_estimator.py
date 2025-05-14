@@ -532,13 +532,16 @@ if "RBF_1" in model_name:
 # GET INERTIA MATRIX ESTIMATES #
 print("\n\n----- GET INERTIA MATRIX ESTIMATES -----")
 
-# load inertia matrix
-M_tr = pkl.load(open(M_tr_path, "rb"))
-M_test1 = pkl.load(open(M_test1_path, "rb"))
-M_tr = np.stack(M_tr[::downsampling_data_load], axis=0)[:num_dat_tr]
-M_test1 = np.stack(M_test1[::downsampling_data_load], axis=0)
+M_tr_df_full = pkl.load(open(M_tr_path, "rb")) 
+M_tr_df_downsampled = M_tr_df_full.iloc[::downsampling_data_load]
+M_tr_df_selected = M_tr_df_downsampled.iloc[indices_tr]
+M_tr_values = M_tr_df_selected[['m11', 'm12', 'm21', 'm22']].values.astype(np.float64)
+M_tr = M_tr_values.reshape(-1, 2, 2)
 
-# compute inertia matrix estimates
+M_test1_df_full = pkl.load(open(M_test1_path, "rb")) 
+M_test1_df_downsampled = M_test1_df_full.iloc[::downsampling_data_load]
+M_test1_values = M_test1_df_downsampled[['m11', 'm12', 'm21', 'm22']].values.astype(np.float64)
+M_test1 = M_test1_values.reshape(-1, 2, 2)
 with torch.no_grad():
     if "RBF_1" in model_name:
         # training
