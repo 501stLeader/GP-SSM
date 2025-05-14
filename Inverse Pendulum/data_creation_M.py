@@ -47,13 +47,6 @@ def save_mass_matrix_standalone(mass_matrix_data, base_filename_pkl, base_filena
             print(f"Warning: Unexpected mass matrix shape {mass_matrix_data.shape} for CSV saving. Skipping CSV save for {base_filename_csv}.")
     else:
         print(f"Warning: pandas not installed. Mass matrix CSV file '{base_filename_csv}' could not be saved.")
-#    # Save to PKL
-#     try:
-#         with open(base_filename_pkl, 'wb') as f:
-#             pickle.dump(mass_matrix_data, f)
-#         print(f"Mass matrix saved to '{base_filename_pkl}'.")
-#     except Exception as e:
-#         print(f"Error saving mass matrix to PKL {base_filename_pkl}: {e}")
 
     
 def save_gravity_vector_standalone(gravity_vector_data, base_filename_pkl, base_filename_csv):
@@ -62,15 +55,6 @@ def save_gravity_vector_standalone(gravity_vector_data, base_filename_pkl, base_
         print(f"Warning: Gravity vector data is None. Skipping save for {base_filename_pkl} and {base_filename_csv}.")
         return
 
-    # # Save to PKL
-    # try:
-    #     with open(base_filename_pkl, 'wb') as f:
-    #         pickle.dump(gravity_vector_data, f)
-    #     print(f"Gravity vector saved to '{base_filename_pkl}'.")
-    # except Exception as e:
-    #     print(f"Error saving gravity vector to PKL {base_filename_pkl}: {e}")
-
-    # Save to CSV
     if PANDAS_AVAILABLE:
         if gravity_vector_data.ndim == 2 and gravity_vector_data.shape[1] == 2:
             try:
@@ -91,11 +75,10 @@ def save_gravity_vector_standalone(gravity_vector_data, base_filename_pkl, base_
         print(f"Warning: pandas not installed. Gravity vector CSV file '{base_filename_csv}' could not be saved.")
 
 
-def prepare_csv_dict(t_subset, x_subset, x_dot_subset, theta_wrapped_rad_subset, omega_subset,
+def prepare_csv_dict(x_subset, x_dot_subset, theta_wrapped_rad_subset, omega_subset,
                      x_dot_dot_subset, omega_dot_subset, F_subset, tau_pendulum_subset):
     """Prepares a dictionary suitable for saving time-series data (excluding mass/gravity matrices) to CSV."""
     csv_subset_dict = {
-        't': t_subset,
         'q_1': x_subset,                      # Cart position
         'dq_1': x_dot_subset,                 # Cart velocity
         'q_2': theta_wrapped_rad_subset,       # Pendulum angle (wrapped)
@@ -151,8 +134,6 @@ def main():
     test_gravity_vector_pkl_filename = os.path.join(args.save_dir, f"{args.base_filename}_test_gravity_vector.pkl")
     test_gravity_vector_csv_filename = os.path.join(args.save_dir, f"{args.base_filename}_test_gravity_vector.csv")
 
-    train_pkl_filename = os.path.join(args.save_dir, f"{args.base_filename}_train.pkl")
-    test_pkl_filename = os.path.join(args.save_dir, f"{args.base_filename}_test.pkl")
     train_csv_filename = os.path.join(args.save_dir, f"{args.base_filename}_train.csv")
     test_csv_filename = os.path.join(args.save_dir, f"{args.base_filename}_test.csv")
 
@@ -162,7 +143,7 @@ def main():
     theta_sim_wrapped = None
     t, x, x_dot, theta_sim, omega, x_dot_dot, omega_dot, F_applied, tau_pendulum_applied, mass_matrix_seq, gravity_vector_seq, dt_loaded_sim = [None]*12
 
-
+   # Load data if --load flag is set
     if args.load:
         print(f"Attempting to load data...")
         loaded_successfully = False
@@ -233,14 +214,14 @@ def main():
              return
         print(f"Data loading process complete. dt_loaded_sim = {dt_loaded_sim:.4f}s. Params: M={M_param:.2f}, m={m_param:.2f}, l={l_param:.2f}, g={g_const_param:.2f}")
 
-    else: #
+    else: 
         print("Generating force profile...")
         force_profile = generate_sinusoidal_force(args.force_sines, args.force_max_amp, args.force_max_freq)
         print("Running simulation with external force...")
         theta_0_rad = np.radians(args.init_theta_deg)
-        q0 = np.array([0.0, 0.0, theta_0_rad, 0.0]) # x, x_dot, theta, omega
+        q0 = np.array([0.0, 0.0, theta_0_rad, 0.0]) # [x, x_dot, theta, omega]
         t_span = (0, args.duration)
-        dt_loaded_sim = args.dt # dt_loaded_sim will store the simulation dt
+        dt_loaded_sim = args.dt 
         steps = int((t_span[1] - t_span[0]) / dt_loaded_sim) + 1
         t_eval = np.linspace(t_span[0], t_span[1], steps)
 
@@ -280,8 +261,8 @@ def main():
 
         if PANDAS_AVAILABLE:
             try:
-                # Main CSV does not include mass/gravity matrices anymore
-                full_csv_dict = prepare_csv_dict(t, x, x_dot, theta_sim_wrapped, omega,
+                
+                full_csv_dict = prepare_csv_dict(x, x_dot, theta_sim_wrapped, omega,
                                                  x_dot_dot, omega_dot, F_applied,
                                                  tau_pendulum_applied)
                 df = pd.DataFrame(full_csv_dict)
@@ -292,50 +273,30 @@ def main():
         else:
             print("Warning: pandas not installed. Full CSV file (main data) could not be saved.")
 
-    # Post-load/simulation checks
+    
     if t is None or theta_sim_wrapped is None:
         print("Error: No data available (either from loading or simulation). Exiting.")
         return
-    # Warnings for mass_matrix_seq or gravity_vector_seq being None will be handled by save/split functions
+    
 
     if args.split:
-        print(f"Performing train-test split ({1-args.test_size:.0%}/{args.test_size:.0%})...")
-        # Ensure all necessary variables for splitting the main data are present
-        # mass_matrix_seq and gravity_vector_seq are handled separately
-        required_vars_for_split_main = {
-            't': t, 'x': x, 'x_dot': x_dot, 'theta_sim': theta_sim,
-            'theta_sim_wrapped': theta_sim_wrapped, 'omega': omega,
-            'x_dot_dot': x_dot_dot, 'omega_dot': omega_dot,
-            'F_applied': F_applied, 'tau_pendulum_applied': tau_pendulum_applied
-        }
-        missing_vars = [name for name, var in required_vars_for_split_main.items() if var is None]
-        if missing_vars:
-            print(f"Error: Cannot perform split. Essential variables for main data missing: {', '.join(missing_vars)}")
-        else:
-            try:
-                indices = np.arange(t.shape[0])
-                train_indices, test_indices = train_test_split(indices, test_size=args.test_size, shuffle=False)
-
-                def prepare_split_dict_for_pkl(subset_indices):
-                    data_dict = {
-                        'q_1': x[subset_indices],
-                        'q_2': theta_sim_wrapped[subset_indices],
-                        'dq_1': x_dot[subset_indices],
-                        'dq_2': omega[subset_indices],
-                        'dqq_1': x_dot_dot[subset_indices],
-                        'dqq_2': omega_dot[subset_indices],
-                        'output_1': F_applied[subset_indices],
-                        'output_2': tau_pendulum_applied[subset_indices],}
-                    return data_dict
-
-                # Training Data
-                print("Processing training data...")
-                train_data_pkl_main = prepare_split_dict_for_pkl(train_indices)
+        try:
+            print(f"Performing train-test split ({1-args.test_size:.0%}/{args.test_size:.0%})...")
+            
+            required_vars_for_split_main = {
+                'x': x, 'x_dot': x_dot,'theta_sim_wrapped': theta_sim_wrapped, 'omega': omega,
+                'x_dot_dot': x_dot_dot, 'omega_dot': omega_dot,
+                'F_applied': F_applied, 'tau_pendulum_applied': tau_pendulum_applied
+            }
+            missing_vars = [name for name, var in required_vars_for_split_main.items() if var is None]
+            if missing_vars:
+                print(f"Error: Cannot perform split. Essential variables for main data missing: {', '.join(missing_vars)}")
+            else:
                 try:
-                    with open(train_pkl_filename, 'wb') as f: pickle.dump(train_data_pkl_main, f)
-                    print(f"Training data (PKL, main) saved to '{train_pkl_filename}'")
+                    indices = np.arange(t.shape[0])
+                    train_indices, test_indices = train_test_split(indices, test_size=args.test_size, shuffle=False)
 
-                    # Save train mass matrix and gravity vector separately
+                        
                     if mass_matrix_seq is not None:
                         save_mass_matrix_standalone(mass_matrix_seq[train_indices], train_mass_matrix_pkl_filename, train_mass_matrix_csv_filename)
                     else:
@@ -350,7 +311,7 @@ def main():
                 if PANDAS_AVAILABLE:
                     try:
                         train_csv_dict_main = prepare_csv_dict(
-                            t[train_indices], x[train_indices], x_dot[train_indices],
+                            x[train_indices], x_dot[train_indices],
                             theta_sim_wrapped[train_indices], omega[train_indices],
                             x_dot_dot[train_indices], omega_dot[train_indices], F_applied[train_indices],
                             tau_pendulum_applied[train_indices]
@@ -363,12 +324,9 @@ def main():
 
 
                 print("Processing test data...")
-                test_data_pkl_main = prepare_split_dict_for_pkl(test_indices)
+                
                 try:
-                    with open(test_pkl_filename, 'wb') as f: pickle.dump(test_data_pkl_main, f)
-                    print(f"Test data (PKL, main) saved to '{test_pkl_filename}'")
-
-                    # Save test mass matrix and gravity vector separately
+                    
                     if mass_matrix_seq is not None:
                         save_mass_matrix_standalone(mass_matrix_seq[test_indices], test_mass_matrix_pkl_filename, test_mass_matrix_csv_filename)
                     else:
@@ -383,7 +341,7 @@ def main():
                 if PANDAS_AVAILABLE:
                     try:
                         test_csv_dict_main = prepare_csv_dict(
-                            t[test_indices], x[test_indices], x_dot[test_indices],
+                            x[test_indices], x_dot[test_indices],
                             theta_sim_wrapped[test_indices], omega[test_indices],
                             x_dot_dot[test_indices], omega_dot[test_indices], F_applied[test_indices],
                             tau_pendulum_applied[test_indices]
@@ -393,8 +351,8 @@ def main():
                         print(f"Test data (CSV, main) saved to '{test_csv_filename}'")
                     except Exception as e: print(f"Error saving test data to CSV (main) {test_csv_filename}: {e}")
                 else: print("Warning: pandas not installed. Test CSV file (main) could not be saved.")
-            except Exception as e:
-                print(f"Error during train-test split or saving process: {e}")
+        except Exception as e:
+            print(f"Error during train-test split or saving process: {e}")
 
 
     if not args.no_plot:
