@@ -268,6 +268,10 @@ def main():
                 df = pd.DataFrame(full_csv_dict)
                 df.to_csv(full_csv_filename, index=False, float_format='%.6f')
                 print(f"Full simulation data (excluding mass/gravity matrices) also saved to '{full_csv_filename}'.")
+                full_pkl_filename = os.path.join(args.save_dir, f"{args.base_filename}_full.pkl")
+                df.to_pickle(full_pkl_filename)
+                print(f"Full simulation data (DataFrame) also saved to '{full_pkl_filename}'.")
+
             except Exception as e:
                 print(f"Error saving full data to CSV {full_csv_filename}: {e}")
         else:
@@ -319,6 +323,10 @@ def main():
                         df_train_main = pd.DataFrame(train_csv_dict_main)
                         df_train_main.to_csv(train_csv_filename, index=False, float_format='%.6f')
                         print(f"Training data (CSV, main) saved to '{train_csv_filename}'")
+                        train_pkl_filename = os.path.join(args.save_dir, f"{args.base_filename}_train.pkl")
+                        df_train_main.to_pickle(train_pkl_filename)
+                        print(f"Training data (DataFrame, main) saved to '{train_pkl_filename}'")
+
                     except Exception as e: print(f"Error saving training data to CSV (main) {train_csv_filename}: {e}")
                 else: print("Warning: pandas not installed. Training CSV file (main) could not be saved.")
 
@@ -349,6 +357,11 @@ def main():
                         df_test_main = pd.DataFrame(test_csv_dict_main)
                         df_test_main.to_csv(test_csv_filename, index=False, float_format='%.6f')
                         print(f"Test data (CSV, main) saved to '{test_csv_filename}'")
+                        test_pkl_filename = os.path.join(args.save_dir, f"{args.base_filename}_test.pkl")
+                        df_test_main.to_pickle(test_pkl_filename)
+                        print(f"Test data (DataFrame, main) saved to '{test_pkl_filename}'")
+  
+                        
                     except Exception as e: print(f"Error saving test data to CSV (main) {test_csv_filename}: {e}")
                 else: print("Warning: pandas not installed. Test CSV file (main) could not be saved.")
         except Exception as e:
