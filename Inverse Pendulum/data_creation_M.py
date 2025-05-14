@@ -32,7 +32,7 @@ def save_mass_matrix_standalone(mass_matrix_data, base_filename_pkl, base_filena
             try:
                 df_data = {
                     'm11': mass_matrix_data[:, 0, 0],
-                    'm12': mass_matrix_data[:, 0, 1],
+                    'm12': mass_matrix_data[:, 0, 1],   
                     'm21': mass_matrix_data[:, 1, 0],
                     'm22': mass_matrix_data[:, 1, 1]
                 }

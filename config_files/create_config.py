@@ -1,4 +1,15 @@
-[DEFAULT]
+import os
+
+# Define the directory and filename
+
+config_dir = '/home/maltenageler/Studienarbeit/GP-SSM/config_files'
+config_filename = 'my_config.ini' # Using the new filename
+config_filepath = os.path.join(config_dir, config_filename)
+
+# Create the directory if it doesn't exist
+os.makedirs(config_dir, exist_ok=True)
+# The detailed INI content from the 'pendulum_config_detailed' document
+ini_content = """[DEFAULT]
 
 # string values
 data_path = /home/maltenageler/Studienarbeit/GP-SSM/Inverse Pendulum/pendulum_data/
@@ -50,3 +61,22 @@ f_k_name = get_K_blocks_GIP_sum_InversePendulum_no_subs
 [LK_GIP_sum]
 lk_model_name = m_GP_LK_GIP_sum
 f_k_name = get_K_blocks_GIP_sum_InversePendulum_no_subs
+"""
+
+# Write the content to the file
+with open(config_filepath, 'w') as f:
+    # .strip() removes leading/trailing whitespace from the multi-line string
+    f.write(ini_content.strip())
+
+print(f"Configuration file saved to: {config_filepath}")
+
+# Optional: Create the other directories mentioned in the config
+# These ensure the paths exist if your script expects them.
+os.makedirs('./data', exist_ok=True)
+os.makedirs('./Results/pendulum', exist_ok=True)
+
+# You can verify the content by reading it back
+# print("\n--- File Content ---")
+# with open(config_filepath, 'r') as f:
+#     print(f.read())
+# print("--- End File Content ---")

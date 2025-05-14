@@ -23,6 +23,8 @@ import gpr_lib.Loss.Gaussian_likelihood as Likelihood
 import Models_Lagrangian_kernel
 import Project_Utils_ as Project_Utils
 
+import os
+import pandas as pd 
 # LOAD CONFIGURATION #
 print("\n\n----- LOAD CONFIGURATION -----")
 
@@ -396,6 +398,7 @@ m.to(device)
 # load the model
 if flg_load:
     print("Load the model...")
+    print(os.getcwd())
     m.load_state_dict(torch.load(model_loading_path))
     m.print_model()
 
@@ -650,70 +653,119 @@ non_positive_def_count_test1 = np.sum(np.min(eig_test1_hat_, 1) <= 0)
 print("Number of training samples with non-positive inertia: ", non_positive_def_count_tr)
 print("Number of test samples with non-positive inertia: ", non_positive_def_count_test1)
 
-# # plot MSE
-# Project_Utils.plot_list([err_M_tr_, err_M_test1_], ["Training inertias MSE", "Test inertias MSE"], ["Training", "Test"])
-# # plt.show()
+# --- Save Predicted Mass Matrices to CSV ---
+print("\n\n----- SAVE PREDICTED MASS MATRICES -----")
 
-# # plot eigenvals
-# Project_Utils.plot_eigenvals(
-#     [np.sort(eig_tr), np.sort(eig_tr_hat_)],
-#     colors=["k", "r"],
-#     labels=["True", "Estimated"],
-#     title="Training eigenvalues",
-# )
-# Project_Utils.plot_eigenvals(
-#     [np.sort(eig_test1), np.sort(eig_test1_hat_)],
-#     colors=["k", "r"],
-#     labels=["True", "Estimated"],
-#     title="Test eigenvalues",
-# )
-# # plt.show()
+# Define file paths for the CSVs
+# Ensure 'saving_path' and 'model_name' are defined as they are earlier in your script
+# (saving_path comes from config, model_name from argparse)
+predicted_M_tr_csv_path = os.path.join(saving_path, f"predictions_M_tr_{model_name}.csv")
+predicted_M_test1_csv_path = os.path.join(saving_path, f"predictions_M_test1_{model_name}.csv")
 
+# Save predicted training mass matrix (M_tr_hat_)
+if M_tr_hat_ is not None:
+    if M_tr_hat_.ndim == 3 and M_tr_hat_.shape[1:] == (num_dof, num_dof): # Assuming num_dof is 2 for pendulum
+        try:
+            # Reshape for CSV: each row is a sample, columns are m11, m12, m21, m22, ...
+            reshaped_M_tr_hat = M_tr_hat_.reshape(M_tr_hat_.shape[0], -1)
+            
+            # Create column names dynamically based on num_dof
+            columns_M = []
+            for r in range(num_dof):
+                for c_col in range(num_dof):
+                    columns_M.append(f'm{r+1}{c_col+1}')
+            
+            df_M_tr_hat = pd.DataFrame(reshaped_M_tr_hat, columns=columns_M)
+            df_M_tr_hat.to_csv(predicted_M_tr_csv_path, index=False, float_format='%.6f')
+            print(f"Predicted training mass matrix saved to '{predicted_M_tr_csv_path}'.")
+        except Exception as e:
+            print(f"Error saving predicted training mass matrix to CSV {predicted_M_tr_csv_path}: {e}")
+    else:
+        print(f"Warning: Unexpected shape for M_tr_hat_ {M_tr_hat_.shape}. Skipping CSV save.")
+else:
+    print("Warning: M_tr_hat_ is None. Skipping CSV save.")
 
-# # plot diagonal elements of M
-# n_rows = int(np.ceil(num_dof / 2))
-# plt.figure()
-# plt.suptitle("Training inertias diag elements")
-# for i in range(num_dof):
-#     plt.subplot(n_rows, 2, i + 1)
-#     plt.ylabel("$M_{" + str(i + 1) + str(i + 1) + "}$")
-#     plt.plot(M_tr[:, i, i], label="true")
-#     plt.plot(M_tr_hat_[:, i, i], label="estimated")
-#     plt.grid()
-#     plt.legend()
+# Save predicted test mass matrix (M_test1_hat_)
+if M_test1_hat_ is not None:
+    if M_test1_hat_.ndim == 3 and M_test1_hat_.shape[1:] == (num_dof, num_dof): # Assuming num_dof is 2 for pendulum
+        try:
+            # Reshape for CSV
+            reshaped_M_test1_hat = M_test1_hat_.reshape(M_test1_hat_.shape[0], -1)
+            
+            # Create column names (if not already created, or re-use 'columns_M')
+            if 'columns_M' not in locals(): # Ensure columns_M is defined
+                 columns_M = []
+                 for r in range(num_dof):
+                     for c_col in range(num_dof):
+                         columns_M.append(f'm{r+1}{c_col+1}')
 
-# plt.figure()
-# plt.suptitle("Test inertias diag elements")
-# for i in range(num_dof):
-#     plt.subplot(n_rows, 2, i + 1)
-#     plt.ylabel("$M_{" + str(i + 1) + str(i + 1) + "}$")
-#     plt.plot(M_test1[:, i, i], label="true")
-#     plt.plot(M_test1_hat_[:, i, i], label="estimated")
-#     plt.grid()
-#     plt.legend()
-
-# # plot determinant of principal minors of M
-# plt.figure()
-# plt.suptitle("Training inertias det of principal minors")
-# for i in range(num_dof):
-#     plt.subplot(n_rows, 2, i + 1)
-#     plt.ylabel("$det(M_{" + str(i + 1) + str(i + 1) + "})$")
-#     plt.plot(np.linalg.det(M_tr[:, : i + 1, : i + 1]), label="true")
-#     plt.plot(np.linalg.det(M_tr_hat_[:, : i + 1, : i + 1]), label="estimated")
-#     plt.grid()
-#     plt.legend()
-
-# plt.figure()
-# plt.suptitle("Test inertias det of principal minors")
-# for i in range(num_dof):
-#     plt.subplot(n_rows, 2, i + 1)
-#     plt.ylabel("$det(M_{" + str(i + 1) + str(i + 1) + "})$")
-#     plt.plot(np.linalg.det(M_test1[:, : i + 1, : i + 1]), label="true")
-#     plt.plot(np.linalg.det(M_test1_hat_[:, : i + 1, : i + 1]), label="estimated")
-#     plt.grid()
-#     plt.legend()
-
-# plt.show()
+            df_M_test1_hat = pd.DataFrame(reshaped_M_test1_hat, columns=columns_M)
+            df_M_test1_hat.to_csv(predicted_M_test1_csv_path, index=False, float_format='%.6f')
+            print(f"Predicted test mass matrix saved to '{predicted_M_test1_csv_path}'.")
+        except Exception as e:
+            print(f"Error saving predicted test mass matrix to CSV {predicted_M_test1_csv_path}: {e}")
+    else:
+        print(f"Warning: Unexpected shape for M_test1_hat_ {M_test1_hat_.shape}. Skipping CSV save.")
+else:
+    print("Warning: M_test1_hat_ is None. Skipping CSV save.")
+# --- End of new code for saving predicted mass matrices ---
+# plot MSE
+Project_Utils.plot_list([err_M_tr_, err_M_test1_], ["Training inertias MSE", "Test inertias MSE"], ["Training", "Test"])
+plt.show()
+# plot eigenvals
+Project_Utils.plot_eigenvals(
+    [np.sort(eig_tr), np.sort(eig_tr_hat_)],
+    colors=["k", "r"],
+    labels=["True", "Estimated"],
+    title="Training eigenvalues",
+)
+Project_Utils.plot_eigenvals(
+    [np.sort(eig_test1), np.sort(eig_test1_hat_)],
+    colors=["k", "r"],
+    labels=["True", "Estimated"],
+    title="Test eigenvalues",
+)
+plt.show()
+# plot diagonal elements of M
+n_rows = int(np.ceil(num_dof / 2))
+plt.figure()
+plt.suptitle("Training inertias diag elements")
+for i in range(num_dof):
+    plt.subplot(n_rows, 2, i + 1)
+    plt.ylabel("$M_{" + str(i + 1) + str(i + 1) + "}$")
+    plt.plot(M_tr[:, i, i], label="true")
+    plt.plot(M_tr_hat_[:, i, i], label="estimated")
+    plt.grid()
+    plt.legend()
+plt.figure()
+plt.suptitle("Test inertias diag elements")
+for i in range(num_dof):
+    plt.subplot(n_rows, 2, i + 1)
+    plt.ylabel("$M_{" + str(i + 1) + str(i + 1) + "}$")
+    plt.plot(M_test1[:, i, i], label="true")
+    plt.plot(M_test1_hat_[:, i, i], label="estimated")
+    plt.grid()
+    plt.legend()
+# plot determinant of principal minors of M
+plt.figure()
+plt.suptitle("Training inertias det of principal minors")
+for i in range(num_dof):
+    plt.subplot(n_rows, 2, i + 1)
+    plt.ylabel("$det(M_{" + str(i + 1) + str(i + 1) + "})$")
+    plt.plot(np.linalg.det(M_tr[:, : i + 1, : i + 1]), label="true")
+    plt.plot(np.linalg.det(M_tr_hat_[:, : i + 1, : i + 1]), label="estimated")
+    plt.grid()
+    plt.legend()
+plt.figure()
+plt.suptitle("Test inertias det of principal minors")
+for i in range(num_dof):
+    plt.subplot(n_rows, 2, i + 1)
+    plt.ylabel("$det(M_{" + str(i + 1) + str(i + 1) + "})$")
+    plt.plot(np.linalg.det(M_test1[:, : i + 1, : i + 1]), label="true")
+    plt.plot(np.linalg.det(M_test1_hat_[:, : i + 1, : i + 1]), label="estimated")
+    plt.grid()
+    plt.legend()
+plt.show()
 
 # GET ENERGY ESTIMATES #
 print("\n\n----- GET ENERGY ESTIMATES -----")
