@@ -1,14 +1,3 @@
-# Copyright (C) 2024 Mitsubishi Electric Research Laboratories (MERL)
-#
-# SPDX-License-Identifier: AGPL-3.0-or-later
-
-"""
-Script file for LK estimation
-Author: Alberto Dalla Libera (alberto.dallalibera.1@gmail.com)
-        Giulio Giacomuzzo (giulio.giacomuzzo@gmail.com)
-        Diego Romeres (romeres@merl.com)
-"""
-
 import argparse
 import configparser
 import pickle as pkl

@@ -64,7 +64,6 @@ def calculate_mass_matrix(theta, M, m, l):
     ])
     return mass_mat
 
-# --- Gravity Vector Function ---
 def calculate_gravity_vector(theta, m, l, g):
     """
     Calculates the gravity vector G(q) for the generalized coordinates [x, theta].
