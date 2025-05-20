@@ -13,10 +13,9 @@ import Models_Lagrangian_kernel
 import Project_Utils_ as Project_Utils
 
 import os
-import pandas as pd 
+import pandas as pd
 # LOAD CONFIGURATION #
 print("\n\n----- LOAD CONFIGURATION -----")
-
 # read argparse parameters
 p = argparse.ArgumentParser("LK estimator")
 p.add_argument("-config_file", type=str, default="", help="Configuration file")
@@ -139,7 +138,7 @@ vel_indices = list(range(num_dof, num_dof * 2))
 acc_indices = list(range(num_dof * 2, num_dof * 3))
 num_dims = len(input_features)
 input_features_joint_list = [input_features for i in range(num_dof)]
-
+print(os.getcwd())
 # training dataset
 input_tr, output_tr, active_dims_list, data_frame_tr = Project_Utils.get_data_from_features(
     tr_path, input_features, input_features_joint_list, output_feature, num_dof
@@ -524,13 +523,13 @@ if "RBF_1" in model_name:
 # GET INERTIA MATRIX ESTIMATES #
 print("\n\n----- GET INERTIA MATRIX ESTIMATES -----")
 
-M_tr_df_full = pkl.load(open(M_tr_path, "rb")) 
+M_tr_df_full = pkl.load(open(M_tr_path, "rb"))
 M_tr_df_downsampled = M_tr_df_full.iloc[::downsampling_data_load]
 M_tr_df_selected = M_tr_df_downsampled.iloc[indices_tr]
 M_tr_values = M_tr_df_selected[['m11', 'm12', 'm21', 'm22']].values.astype(np.float64)
 M_tr = M_tr_values.reshape(-1, 2, 2)
 
-M_test1_df_full = pkl.load(open(M_test1_path, "rb")) 
+M_test1_df_full = pkl.load(open(M_test1_path, "rb"))
 M_test1_df_downsampled = M_test1_df_full.iloc[::downsampling_data_load]
 M_test1_values = M_test1_df_downsampled[['m11', 'm12', 'm21', 'm22']].values.astype(np.float64)
 M_test1 = M_test1_values.reshape(-1, 2, 2)
@@ -657,13 +656,13 @@ if M_tr_hat_ is not None:
         try:
             # Reshape for CSV: each row is a sample, columns are m11, m12, m21, m22, ...
             reshaped_M_tr_hat = M_tr_hat_.reshape(M_tr_hat_.shape[0], -1)
-            
+
             # Create column names dynamically based on num_dof
             columns_M = []
             for r in range(num_dof):
                 for c_col in range(num_dof):
                     columns_M.append(f'm{r+1}{c_col+1}')
-            
+
             df_M_tr_hat = pd.DataFrame(reshaped_M_tr_hat, columns=columns_M)
             df_M_tr_hat.to_csv(predicted_M_tr_csv_path, index=False, float_format='%.6f')
             print(f"Predicted training mass matrix saved to '{predicted_M_tr_csv_path}'.")
@@ -680,7 +679,7 @@ if M_test1_hat_ is not None:
         try:
             # Reshape for CSV
             reshaped_M_test1_hat = M_test1_hat_.reshape(M_test1_hat_.shape[0], -1)
-            
+
             # Create column names (if not already created, or re-use 'columns_M')
             if 'columns_M' not in locals(): # Ensure columns_M is defined
                  columns_M = []
