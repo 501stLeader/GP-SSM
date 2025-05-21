@@ -1,14 +1,3 @@
-# Copyright (C) 2024 Mitsubishi Electric Research Laboratories (MERL)
-#
-# SPDX-License-Identifier: AGPL-3.0-or-later
-
-"""
-Script file for LK estimation
-Author: Alberto Dalla Libera (alberto.dallalibera.1@gmail.com)
-        Giulio Giacomuzzo (giulio.giacomuzzo@gmail.com)
-        Diego Romeres (romeres@merl.com)
-"""
-
 import argparse
 import configparser
 import pickle as pkl
@@ -16,22 +5,23 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import torch
 
 import config_files.Utils as Config_Utils
 import gpr_lib.Loss.Gaussian_likelihood as Likelihood
 import Models_Lagrangian_kernel
 import Project_Utils_ as Project_Utils
+from matplotlib.ticker import ScalarFormatter # Import the formatter
 
+import os
+import pandas as pd
 # LOAD CONFIGURATION #
 print("\n\n----- LOAD CONFIGURATION -----")
-
 # read argparse parameters
 p = argparse.ArgumentParser("LK estimator")
 p.add_argument("-config_file", type=str, default="", help="Configuration file")
 p.add_argument(
-    "-kernel_name", type=str, default="", help="name of the kernel model, options: GIP, GIP_vel, POLYRBF, RBF"
+    "-kernel_name", type=str, default="", help="name of the kernel model, options: GIP, GIP_vel, POLYRBF, RBF, RBF_M"
 )
 d_argparse = vars(p.parse_known_args()[0])
 
@@ -42,6 +32,7 @@ data_path = None
 file_name_1 = None
 file_name_2 = None
 saving_path = None
+model_loading_path = None
 dev_name = None
 num_threads = None
 num_dof = None
@@ -75,9 +66,7 @@ downsampling = None
 file_name_m1 = None
 file_name_m2 = None
 single_sigma_n = None
-file_name_dyn1 = None
-file_name_dyn2 = None
-loading_path = None
+
 
 # read the config file
 config = configparser.ConfigParser()
@@ -91,15 +80,8 @@ if "flg_frict" not in d_config:
     flg_frict = False
 if "flg_np" not in d_config:
     flg_np = False
-if "flg_plot" not in d_config:
-    flg_plot = True
 if "drop_last" not in d_config:
     drop_last = False
-if "test_file_list" not in d_config:
-    test_file_list = None
-else:
-    test_file_list = d_config["test_file_list"]
-
 
 # IMPORT FUNCTIONS #
 print("\n\n----- IMPORT FUNCTIONS -----")
@@ -115,34 +97,21 @@ exec("from gpr_lib.GP_prior.LK." + f_k_name + "_U_Y_cov_torch import " + f_k_nam
 # SET FILE NAME #
 print("\n\n----- SET FILE NAME -----")
 
-# loading path list
-tr_path_list = [data_path + file_name for file_name in file_name_1.split(",")]
-test1_path_list = [data_path + file_name for file_name in file_name_2.split(",")]
-if "file_name_dyn1" in d_config:
-    dyn_components_tr_path = [data_path + file_name for file_name in file_name_dyn1.split(",")]
-    dyn_components_test1_path = [data_path + file_name for file_name in file_name_dyn2.split(",")]
-else:
-    dyn_components_tr_path = None
-    dyn_components_test1_path = None
-if test_file_list is None:
-    test_path_list = None
-else:
-    test_path_list = [data_path + file_name + ".pkl" for file_name in test_file_list.split(",")]
+# loading path
+tr_path = data_path + file_name_1
+test1_path = data_path + file_name_2
+M_tr_path = data_path + file_name_m1
+M_test1_path = data_path + file_name_m2
 
 # saving and loading path
-model_saving_path = saving_path + "model_" + model_name + ".pt"
-model_loading_path = loading_path + "model_" + model_name + ".pt"
+model_saving_path = saving_path + "run_model_" + model_name + ".pt"
+model_loading_path = model_loading_path + "run_model_" + model_name + ".pt"
 estimate_tr_saving_path = saving_path + "model_" + model_name + "_tr_estimates.pkl"
 estimate_test1_saving_path = saving_path + "model_" + model_name + "_test1_estimates.pkl"
 estimate_m_tr_saving_path = saving_path + "model_" + model_name + "_M_tr_estimates.pkl"
 estimate_m_test1_saving_path = saving_path + "model_" + model_name + "_M_test1_estimates.pkl"
-estimate_g_tr_saving_path = saving_path + "model_" + model_name + "_g_tr_estimates.pkl"
-estimate_g_test1_saving_path = saving_path + "model_" + model_name + "_g_test1_estimates.pkl"
-if test_file_list is not None:
-    estimate_test_saving_path_list = [
-        saving_path + "model_" + model_name + "_" + file_name + "_estimates.pkl"
-        for file_name in test_file_list.split(",")
-    ]
+estimate_acc_tr_saving_path = saving_path + "model_" + model_name + "_acc_tr_estimates.pkl"
+estimate_acc_test1_saving_path = saving_path + "model_" + model_name + "_acc_test1_estimates.pkl"
 
 
 # SET TYPE AND DEVICE #
@@ -171,40 +140,17 @@ vel_indices = list(range(num_dof, num_dof * 2))
 acc_indices = list(range(num_dof * 2, num_dof * 3))
 num_dims = len(input_features)
 input_features_joint_list = [input_features for i in range(num_dof)]
-
+print(os.getcwd())
 # training dataset
-input_tr_list = []
-output_tr_list = []
-data_frame_tr_list = []
-for tr_path in tr_path_list:
-    input_tr, output_tr, active_dims_list, data_frame_tr = Project_Utils.get_data_from_features(
-        tr_path, input_features, input_features_joint_list, output_feature, num_dof
-    )
-    input_tr_list.append(input_tr)
-    output_tr_list.append(output_tr)
-    data_frame_tr_list.append(data_frame_tr)
-input_tr = np.concatenate(input_tr_list, 0)
-output_tr = np.concatenate(output_tr_list, 0)
-data_frame_tr = pd.concat(data_frame_tr_list)
+input_tr, output_tr, active_dims_list, data_frame_tr = Project_Utils.get_data_from_features(
+    tr_path, input_features, input_features_joint_list, output_feature, num_dof
+)
 noiseless_output_tr = data_frame_tr[[noiseless_output_feature + "_" + str(i + 1) for i in joint_index_list]].values
 
 # test dataset
-input_test1_list = []
-output_test1_list = []
-data_frame_test1_list = []
-for test1_path in test1_path_list:
-    input_test1, output_test1, active_dims_list, data_frame_test1 = Project_Utils.get_data_from_features(
-        test1_path, input_features, input_features_joint_list, output_feature, num_dof
-    )
-    noiseless_output_test1 = data_frame_test1[
-        [noiseless_output_feature + "_" + str(i + 1) for i in joint_index_list]
-    ].values
-    input_test1_list.append(input_test1)
-    output_test1_list.append(output_test1)
-    data_frame_test1_list.append(data_frame_test1)
-input_test1 = np.concatenate(input_test1_list, 0)
-output_test1 = np.concatenate(output_test1_list, 0)
-data_frame_test1 = pd.concat(data_frame_test1_list)
+input_test1, output_test1, active_dims_list, data_frame_test1 = Project_Utils.get_data_from_features(
+    test1_path, input_features, input_features_joint_list, output_feature, num_dof
+)
 noiseless_output_test1 = data_frame_test1[
     [noiseless_output_feature + "_" + str(i + 1) for i in joint_index_list]
 ].values
@@ -218,6 +164,7 @@ input_test1 = input_test1[::downsampling_data_load, :]
 output_test1 = output_test1[::downsampling_data_load, :]
 noiseless_output_test1 = noiseless_output_test1[::downsampling_data_load, :]
 data_frame_test1 = data_frame_test1.iloc[::downsampling_data_load, :]
+
 
 # normaliziation
 if flg_norm:
@@ -247,39 +194,9 @@ data_frame_tr = data_frame_tr.iloc[indices_tr, :]
 num_dat_test1 = input_test1.shape[0]
 print("input_tr.shape: ", input_tr.shape)
 print("input_test1.shape: ", input_test1.shape)
-if batch_size is None or batch_size <= 0:
+if batch_size == -1 or batch_size is None:
     batch_size = num_dat_tr
-print("\nbatch_size =", batch_size)
 
-# load dyn components
-if dyn_components_tr_path is not None:
-    # load
-    M_tr = []
-    g_tr = []
-    for path in dyn_components_tr_path:
-        d = pkl.load(open(path, "rb"))
-        M_tr.append(d["M"])  # [::downsampling_data_load,:,:])
-        g_tr.append(d["g"])  # [::downsampling_data_load,:])
-    M_test1 = []
-    g_test1 = []
-    for path in dyn_components_test1_path:
-        d = pkl.load(open(path, "rb"))
-        M_test1.append(d["M"])  # [::downsampling_data_load,:,:])
-        g_test1.append(d["g"])  # [::downsampling_data_load,:])
-    # concatenate
-    M_tr = np.concatenate(M_tr, 0)[::downsampling_data_load, :, :]
-    M_tr = M_tr[indices_tr, :, :]
-    M_test1 = np.concatenate(M_test1, 0)[::downsampling_data_load, :, :]
-    g_tr = np.concatenate(g_tr, 0)[::downsampling_data_load, :]
-    g_tr = g_tr[indices_tr, :]
-    g_test1 = np.concatenate(g_test1, 0)[::downsampling_data_load, :]
-    print("M_tr.shape", M_tr.shape)
-    print("g_tr.shape", g_tr.shape)
-else:
-    M_tr = None
-    g_tr = None
-    M_test1 = None
-    g_test1 = None
 
 # GET THE MODEL #
 print("\n\n----- GET THE MODEL -----")
@@ -290,59 +207,7 @@ if single_sigma_n:
 else:
     sigma_n_init = [np.std(output_tr[:, i]) for i in range(0, num_dof)]
 init_param_dict = {}
-
-# parameters init
-if model_name == "LK_GIP_vel":
-    # GIP vel model
-    init_param_dict["sigma_kin_vel_init"] = np.ones([int((num_dof**2 - num_dof) / 2 + num_dof)])
-    init_param_dict["flg_train_sigma_kin_vel"] = True
-    if num_prism > 0:
-        init_param_dict["sigma_kin_pos_prism_init"] = np.ones([num_prism, 2])
-        init_param_dict["flg_train_sigma_kin_pos_prism"] = True
-        init_param_dict["sigma_pot_prism_init"] = np.ones([num_prism, 2])
-        init_param_dict["flg_train_sigma_pot_prism"] = True
-    if num_rev > 0:
-        init_param_dict["sigma_kin_pos_rev_init"] = np.ones([num_rev, 3])
-        init_param_dict["flg_train_sigma_kin_pos_rev"] = True
-        init_param_dict["sigma_pot_rev_init"] = np.ones([num_rev, 3])
-        init_param_dict["flg_train_sigma_pot_rev"] = True
-elif model_name == "LK_GIP":
-    # GIP model
-    init_param_dict["sigma_kin_vel_init"] = np.ones(num_dof)
-    init_param_dict["flg_train_sigma_kin_vel"] = True
-    if num_prism > 0:
-        init_param_dict["sigma_kin_pos_prism_init"] = np.ones([num_prism, 2])
-        init_param_dict["flg_train_sigma_kin_pos_prism"] = True
-        init_param_dict["sigma_pot_prism_init"] = np.ones([num_prism, 2])
-        init_param_dict["flg_train_sigma_pot_prism"] = True
-    if num_rev > 0:
-        init_param_dict["sigma_kin_pos_rev_init"] = np.ones([num_rev, 3])
-        init_param_dict["flg_train_sigma_kin_pos_rev"] = True
-        init_param_dict["sigma_pot_rev_init"] = np.ones([num_rev, 3])
-        init_param_dict["flg_train_sigma_pot_rev"] = True
-elif model_name == "LK_POLY_RBF":
-    init_param_dict["lengthscales_T_init"] = np.ones(num_dof)
-    init_param_dict["flg_train_lengthscales_T"] = True
-    init_param_dict["scale_T_init"] = np.ones(1)
-    init_param_dict["flg_train_scale_T"] = True
-    init_param_dict["sigma_POLY_init"] = np.ones(num_dof)
-    init_param_dict["flg_train_sigma_POLY"] = True
-    init_param_dict["lengthscales_U_init"] = np.ones(num_dof)
-    init_param_dict["flg_train_lengthscales_U"] = True
-    init_param_dict["scale_U_init"] = np.ones(1)
-    init_param_dict["flg_train_scale_U"] = True
-elif model_name == "LK_POLY_vel_RBF":
-    init_param_dict["lengthscales_T_init"] = np.ones(num_dof)
-    init_param_dict["flg_train_lengthscales_T"] = True
-    init_param_dict["scale_T_init"] = np.ones(1)
-    init_param_dict["flg_train_scale_T"] = True
-    init_param_dict["sigma_POLY_init"] = np.ones(int((num_dof**2 - num_dof) / 2 + num_dof))
-    init_param_dict["flg_train_sigma_POLY"] = True
-    init_param_dict["lengthscales_U_init"] = np.ones(num_dof)
-    init_param_dict["flg_train_lengthscales_U"] = True
-    init_param_dict["scale_U_init"] = np.ones(1)
-    init_param_dict["flg_train_scale_U"] = True
-elif model_name == "LK_GIP_sum":
+if model_name == "LK_GIP_sum":
     # get the robot structure
     robot_structure = []
     for c in range(len(robot_structure_str)):
@@ -435,7 +300,6 @@ else:
     friction_model = None
 # check non parametric flag
 if flg_np:
-    init_param_dict["active_dims_NP"] = [i for i in range(num_dims)]
     init_param_dict["scale_NP_par_init"] = np.ones([num_dof])
     init_param_dict["lengthscale_NP_par_init"] = np.ones([num_dof, num_dims])
     init_param_dict["flg_train_NP_par"] = True
@@ -468,11 +332,11 @@ m = model(
 
 # move the model to the device
 m.to(device)
-m.print_model()
 
 # load the model
 if flg_load:
     print("Load the model...")
+    print(os.getcwd())
     m.load_state_dict(torch.load(model_loading_path))
     m.print_model()
 
@@ -502,11 +366,6 @@ if flg_train:
         m.cpu()
         torch.save(m.state_dict(), model_saving_path)
         m.to(device)
-
-# move the model to cpu
-device = torch.device("cpu")
-m.to(device)
-m.print_model()
 
 
 # GET TORQUES ESTIMATES #
@@ -561,89 +420,36 @@ if flg_save:
 print("\nnMSE")
 Project_Utils.get_stat_estimate(Y=d_tr["Y_noiseless"], Y_hat=d_tr["Y_hat"], stat_name="nMSE")
 Project_Utils.get_stat_estimate(Y=d_test1["Y_noiseless"], Y_hat=d_test1["Y_hat"], stat_name="nMSE")
+
 print("\nMSE")
 Project_Utils.get_stat_estimate(Y=d_tr["Y_noiseless"], Y_hat=d_tr["Y_hat"], stat_name="MSE")
 Project_Utils.get_stat_estimate(Y=d_test1["Y_noiseless"], Y_hat=d_test1["Y_hat"], stat_name="MSE")
 
-if flg_plot:
-    # print the estimates
-    dq_tr = data_frame_tr[dq_names].values
-    dq_test1 = data_frame_test1[dq_names].values
-    Project_Utils.print_estimate_with_vel(
-        Y=d_tr["Y"],
-        Y_hat=d_tr["Y_hat"],
-        joint_index_list=list(range(1, num_dof + 1)),
-        dq=dq_tr,
-        Y_noiseless=None,
-        Y_hat_var=d_tr["Y_var"],
-        output_name="tau",
-    )
-    plt.show()
-    Project_Utils.print_estimate_with_vel(
-        Y=d_test1["Y"],
-        Y_hat=d_test1["Y_hat"],
-        joint_index_list=list(range(1, num_dof + 1)),
-        dq=dq_test1,
-        Y_noiseless=None,
-        Y_hat_var=d_test1["Y_var"],
-        output_name="tau",
-    )
-    plt.show()
-
-
-# check test file list
-with torch.no_grad():
-    if test_file_list is not None:
-        for test_index in range(len(test_path_list)):
-            print("\nTest on " + test_path_list[test_index])
-
-            # load data
-            input_test, output_test, active_dims_list, data_frame_test = Project_Utils.get_data_from_features(
-                test_path_list[test_index], input_features, input_features_joint_list, output_feature, num_dof
-            )
-            noiseless_output_test = data_frame_test[
-                [noiseless_output_feature + "_" + str(i + 1) for i in joint_index_list]
-            ].values
-
-            # downsampling
-            input_test = input_test[::downsampling_data_load, :]
-            output_test = output_test[::downsampling_data_load, :]
-            noiseless_output_test = noiseless_output_test[::downsampling_data_load, :]
-            data_frame_test = data_frame_test.iloc[::downsampling_data_load, :]
-
-            # normaliziation
-            if flg_norm:
-                output_test = output_test / norm_coef
-                noiseless_output_test = noiseless_output_test / norm_coef
-
-            # compute estimate
-            t_start = time.time()
-            Y_test_hat, var_test = m.get_estimate_from_alpha(
-                X=torch.tensor(input_tr[::downsampling], dtype=dtype, device=device),
-                X_test=torch.tensor(input_test, dtype=dtype, device=device),
-                alpha=alpha_tr,
-                K_X_inv=K_X_inv,
-            )
-            Y_test_hat = Y_test_hat.detach().cpu().numpy()
-            var_test = var_test.detach().cpu().numpy()
-            t_stop = time.time()
-            print("Time elapsed ", t_stop - t_start)
-
-            # denormalize signals and move results to dictionary
-            d_test = Project_Utils.get_results_dict(
-                Y=output_test,
-                Y_hat=Y_test_hat,
-                norm_coef=norm_coef,
-                mean_coef=mean_coef,
-                Y_var=var_test,
-                Y_noiseless=noiseless_output_test,
-            )
-
-            Project_Utils.get_stat_estimate(Y=d_test["Y_noiseless"], Y_hat=d_test["Y_hat"], stat_name="nMSE")
-
-            # save
-            if flg_save:
-                pkl.dump(d_test, open(estimate_test_saving_path_list[test_index], "wb"))
+# # print the estimates
+# dq_tr = data_frame_tr[dq_names].values
+# dq_test1 = data_frame_test1[dq_names].values
+# Project_Utils.print_estimate_single_fig(
+#     Y=d_tr["Y"],
+#     Y_hat=d_tr["Y_hat"],
+#     joint_index_list=[i + 1 for i in range(num_dof)],
+#     # dq=dq_tr,
+#     Y_noiseless=d_tr["Y_noiseless"],
+#     Y_hat_var=d_tr["Y_var"],
+#     output_name="tau",
+#     title="Torque estimates on training trajectory",
+# )
+# # plt.show()
+# Project_Utils.print_estimate_single_fig(
+#     Y=d_test1["Y"],
+#     Y_hat=d_test1["Y_hat"],
+#     joint_index_list=[i + 1 for i in range(num_dof)],
+#     # dq=dq_test1
+#     Y_noiseless=None,
+#     Y_hat_var=d_test1["Y_var"],
+#     output_name="tau",
+#     title="Torque estimates on test trajectory",
+# )
+# plt.show()
 
 
 # Get rank of the K matrix
@@ -655,17 +461,28 @@ with torch.no_grad():
         flg_frict=flg_frict,
         flg_np=flg_np,
     )
-
     rk_K = np.linalg.matrix_rank(K.detach().cpu().numpy())
 
 print("\n K has dimensions: {} x {}".format(K.shape[0], K.shape[1]))
 print("\n K has rank: {}".format(rk_K))
 
 
+if "RBF_1" in model_name:
+    quit()
+
 # GET INERTIA MATRIX ESTIMATES #
 print("\n\n----- GET INERTIA MATRIX ESTIMATES -----")
 
-# compute inertia matrix estimates
+M_tr_df_full = pkl.load(open(M_tr_path, "rb"))
+M_tr_df_downsampled = M_tr_df_full.iloc[::downsampling_data_load]
+M_tr_df_selected = M_tr_df_downsampled.iloc[indices_tr]
+M_tr_values = M_tr_df_selected[['m11']].values.astype(np.float64)
+M_tr = M_tr_values.reshape(-1, 1, 1)
+
+M_test1_df_full = pkl.load(open(M_test1_path, "rb"))
+M_test1_df_downsampled = M_test1_df_full.iloc[::downsampling_data_load]
+M_test1_values = M_test1_df_downsampled[['m11']].values.astype(np.float64)
+M_test1 = M_test1_values.reshape(-1, 1, 1)
 with torch.no_grad():
     if "RBF_1" in model_name:
         # training
@@ -731,6 +548,16 @@ with torch.no_grad():
         print("Time elapsed ", t_stop - t_start)
 
 
+# mean square error
+# err_M_tr = np.mean(np.sqrt((M_tr-M_tr_hat)**2), axis=(1,2))
+err_M_tr_ = np.mean(np.sqrt((M_tr - M_tr_hat_) ** 2), axis=(1, 2))
+# print('\nTraining mean MSE: ',np.mean(err_M_tr))
+print("Training mean MSE kin: ", np.mean(err_M_tr_))
+# err_M_test1 = np.mean(np.sqrt((M_test1-M_test1_hat)**2), axis=(1,2))
+err_M_test1_ = np.mean(np.sqrt((M_test1 - M_test1_hat_) ** 2), axis=(1, 2))
+# print('\nTest mean MSE: ',np.mean(err_M_test1))
+print("Test mean MSE kin: ", np.mean(err_M_test1_))
+
 # check simmetry
 symm_err_tr = M_tr_hat_ - np.transpose(M_tr_hat_, axes=(0, 2, 1))
 simm_mismatches_tr = np.sum(
@@ -753,50 +580,292 @@ print(
 )
 
 # check positivity
+eig_tr, _ = np.linalg.eig(M_tr)
+# eig_tr_hat, _  = np.linalg.eig(M_tr_hat)
 eig_tr_hat_, _ = np.linalg.eig(M_tr_hat_)
+eig_test1, _ = np.linalg.eig(M_test1)
+# eig_test1_hat, _  = np.linalg.eig(M_test1_hat)
 eig_test1_hat_, _ = np.linalg.eig(M_test1_hat_)
 non_positive_def_count_tr = np.sum(np.min(eig_tr_hat_, 1) <= 0)
 non_positive_def_count_test1 = np.sum(np.min(eig_test1_hat_, 1) <= 0)
 print("Number of training samples with non-positive inertia: ", non_positive_def_count_tr)
 print("Number of test samples with non-positive inertia: ", non_positive_def_count_test1)
 
-# plot eigenvals
-if dyn_components_tr_path is not None:
-    # load inertia matrix
-    eig_tr, _ = np.linalg.eig(M_tr)
-    eig_test1, _ = np.linalg.eig(M_test1)
-    eig_list_tr = [np.sort(eig_tr), np.sort(eig_tr_hat_)]
-    eig_list_test = [np.sort(eig_test1), np.sort(eig_test1_hat_)]
-    colors = ["b", "r"]
-    labels = ["Real", "Estimated"]
-else:
-    eig_list_tr = [np.sort(eig_tr_hat_)]
-    eig_list_test = [np.sort(eig_test1_hat_)]
-    colors = ["r"]
-    labels = ["Estimated"]
-Project_Utils.plot_eigenvals(eig_list_tr, colors=colors, labels=labels, title="Training eigenvalues")
-Project_Utils.plot_eigenvals(eig_list_test, colors=colors, labels=labels, title="Test eigenvalues")
+# --- Save Predicted Mass Matrices to CSV ---
+print("\n\n----- SAVE PREDICTED MASS MATRICES -----")
 
+# Define file paths for the CSVs
+# Ensure 'saving_path' and 'model_name' are defined as they are earlier in your script
+# (saving_path comes from config, model_name from argparse)
+predicted_M_tr_csv_path = os.path.join(saving_path, f"predictions_M_tr_{model_name}.csv")
+predicted_M_test1_csv_path = os.path.join(saving_path, f"predictions_M_test1_{model_name}.csv")
+
+# Save predicted training mass matrix (M_tr_hat_)
+if M_tr_hat_ is not None:
+    if M_tr_hat_.ndim == 3 and M_tr_hat_.shape[1:] == (num_dof, num_dof): # Assuming num_dof is 2 for pendulum
+        try:
+            # Reshape for CSV: each row is a sample, columns are m11, m12, m21, m22, ...
+            reshaped_M_tr_hat = M_tr_hat_.reshape(M_tr_hat_.shape[0], -1)
+
+            # Create column names dynamically based on num_dof
+            columns_M = []
+            for r in range(num_dof):
+                for c_col in range(num_dof):
+                    columns_M.append(f'm{r+1}{c_col+1}')
+
+            df_M_tr_hat = pd.DataFrame(reshaped_M_tr_hat, columns=columns_M)
+            df_M_tr_hat.to_csv(predicted_M_tr_csv_path, index=False, float_format='%.10f')
+            print(f"Predicted training mass matrix saved to '{predicted_M_tr_csv_path}'.")
+        except Exception as e:
+            print(f"Error saving predicted training mass matrix to CSV {predicted_M_tr_csv_path}: {e}")
+    else:
+        print(f"Warning: Unexpected shape for M_tr_hat_ {M_tr_hat_.shape}. Skipping CSV save.")
+else:
+    print("Warning: M_tr_hat_ is None. Skipping CSV save.")
+
+# Save predicted test mass matrix (M_test1_hat_)
+if M_test1_hat_ is not None:
+    if M_test1_hat_.ndim == 3 and M_test1_hat_.shape[1:] == (num_dof, num_dof): # Assuming num_dof is 2 for pendulum
+        try:
+            # Reshape for CSV
+            reshaped_M_test1_hat = M_test1_hat_.reshape(M_test1_hat_.shape[0], -1)
+
+            # Create column names (if not already created, or re-use 'columns_M')
+            if 'columns_M' not in locals(): # Ensure columns_M is defined
+                 columns_M = []
+                 for r in range(num_dof):
+                     for c_col in range(num_dof):
+                         columns_M.append(f'm{r+1}{c_col+1}')
+
+            df_M_test1_hat = pd.DataFrame(reshaped_M_test1_hat, columns=columns_M)
+            df_M_test1_hat.to_csv(predicted_M_test1_csv_path, index=False, float_format='%.10f')
+            print(f"Predicted test mass matrix saved to '{predicted_M_test1_csv_path}'.")
+        except Exception as e:
+            print(f"Error saving predicted test mass matrix to CSV {predicted_M_test1_csv_path}: {e}")
+    else:
+        print(f"Warning: Unexpected shape for M_test1_hat_ {M_test1_hat_.shape}. Skipping CSV save.")
+else:
+    print("Warning: M_test1_hat_ is None. Skipping CSV save.")
+ # --- Save Predicted Mass Matrices to CSV ---
+print("\n\n----- SAVE PREDICTED MASS MATRICES -----")
+
+# Define file paths for the CSVs
+predicted_M_tr_csv_path = os.path.join(saving_path, f"predictions_M_tr_with_q_dq_{model_name}.csv")
+predicted_M_test1_csv_path = os.path.join(saving_path, f"predictions_M_test1_with_q_dq_{model_name}.csv")
+
+# --- For Training Data (M_tr_hat_) ---
+if M_tr_hat_ is not None:
+    if M_tr_hat_.ndim == 3 and M_tr_hat_.shape[1:] == (num_dof, num_dof):
+        try:
+            # Reshape M_tr_hat_ for CSV
+            reshaped_M_tr_hat = M_tr_hat_.reshape(M_tr_hat_.shape[0], -1)
+
+            # Get q and dq values from input_tr (ensure it corresponds to M_tr_hat_)
+            # M_tr_hat_ is based on input_tr (potentially downsampled and filtered)
+            # So, we use input_tr directly here.
+            q_tr_values = input_tr[:, pos_indices] # Assuming pos_indices are defined correctly
+            dq_tr_values = input_tr[:, vel_indices] # Assuming vel_indices are defined correctly
+
+            # Create column names for q and dq
+            q_col_names = [f"q_{i+1}" for i in range(num_dof)]
+            dq_col_names = [f"dq_{i+1}" for i in range(num_dof)]
+
+            # Create column names dynamically for the mass matrix elements
+            columns_M = []
+            for r in range(num_dof):
+                for c_col in range(num_dof):
+                    columns_M.append(f'm{r+1}{c_col+1}')
+
+            # Combine q, dq, and mass matrix data
+            combined_data_tr = np.concatenate((q_tr_values, dq_tr_values, reshaped_M_tr_hat), axis=1)
+
+            # Create the full list of column names
+            all_columns_tr = q_col_names + dq_col_names + columns_M
+
+            df_M_tr_hat = pd.DataFrame(combined_data_tr, columns=all_columns_tr)
+            df_M_tr_hat.to_csv(predicted_M_tr_csv_path, index=False, float_format='%.10f')
+            print(f"Predicted training mass matrix with q and dq saved to '{predicted_M_tr_csv_path}'.")
+        except Exception as e:
+            print(f"Error saving predicted training mass matrix with q and dq to CSV {predicted_M_tr_csv_path}: {e}")
+    else:
+        print(f"Warning: Unexpected shape for M_tr_hat_ {M_tr_hat_.shape}. Skipping CSV save.")
+else:
+    print("Warning: M_tr_hat_ is None. Skipping CSV save.")
+
+# --- For Test Data (M_test1_hat_) ---
+if M_test1_hat_ is not None:
+    if M_test1_hat_.ndim == 3 and M_test1_hat_.shape[1:] == (num_dof, num_dof):
+        try:
+            # Reshape M_test1_hat_ for CSV
+            reshaped_M_test1_hat = M_test1_hat_.reshape(M_test1_hat_.shape[0], -1)
+
+            # Get q and dq values from input_test1 (ensure it corresponds to M_test1_hat_)
+            q_test1_values = input_test1[:, pos_indices]
+            dq_test1_values = input_test1[:, vel_indices]
+
+            # Create column names for q and dq (can reuse from above if num_dof is the same)
+            if 'q_col_names' not in locals(): # Define if not already defined
+                q_col_names = [f"q_{i+1}" for i in range(num_dof)]
+                dq_col_names = [f"dq_{i+1}" for i in range(num_dof)]
+                columns_M = []
+                for r in range(num_dof):
+                    for c_col in range(num_dof):
+                        columns_M.append(f'm{r+1}{c_col+1}')
+
+            # Combine q, dq, and mass matrix data
+            combined_data_test1 = np.concatenate((q_test1_values, dq_test1_values, reshaped_M_test1_hat), axis=1)
+
+            # Create the full list of column names
+            all_columns_test1 = q_col_names + dq_col_names + columns_M
+
+            df_M_test1_hat = pd.DataFrame(combined_data_test1, columns=all_columns_test1)
+            df_M_test1_hat.to_csv(predicted_M_test1_csv_path, index=False, float_format='%.10f')
+            print(f"Predicted test mass matrix with q and dq saved to '{predicted_M_test1_csv_path}'.")
+        except Exception as e:
+            print(f"Error saving predicted test mass matrix with q and dq to CSV {predicted_M_test1_csv_path}: {e}")
+    else:
+        print(f"Warning: Unexpected shape for M_test1_hat_ {M_test1_hat_.shape}. Skipping CSV save.")
+else:
+    print("Warning: M_test1_hat_ is None. Skipping CSV save.")
+# --- End of modified code ---
+
+
+# --- End of new code for saving predicted mass matrices ---
+# plot MSE
+Project_Utils.plot_list([err_M_tr_, err_M_test1_], ["Training inertias MSE", "Test inertias MSE"], ["Training", "Test"])
+plt.show()
+# # plot eigenvals
+# Project_Utils.plot_eigenvals(
+#     [np.sort(eig_tr), np.sort(eig_tr_hat_)],
+#     colors=["k", "r"],
+#     labels=["True", "Estimated"],
+#     title="Training eigenvalues",
+# )
+# Project_Utils.plot_eigenvals(
+#     [np.sort(eig_test1), np.sort(eig_test1_hat_)],
+#     colors=["k", "r"],
+#     labels=["True", "Estimated"],
+#     title="Test eigenvalues",
+# )
+# plt.show()
+# plot diagonal elements of M
+n_rows = int(np.ceil(num_dof / 2))
+
+plt.figure(figsize=(12, 5 * n_rows)) # Adjust figsize as needed
+plt.suptitle("Training inertias diag elements", fontsize=16)
+for i in range(num_dof):
+    ax1 = plt.subplot(n_rows, 2, i + 1)
+
+    # Plot absolute values on the first y-axis (ax1)
+    color_true = 'tab:blue'
+    ax1.set_ylabel("$M_{" + str(i + 1) + str(i + 1) + "}$ (value)", color=color_true, fontsize=12)
+    line1, = ax1.plot(M_tr[:, i, i], label="true value", color=color_true, linestyle='-')
+    line2, = ax1.plot(M_tr_hat_[:, i, i], label="estimated value", color=color_true, linestyle='--')
+    ax1.tick_params(axis='y', labelcolor=color_true)
+    ax1.grid(True, linestyle=':', alpha=0.7)
+
+    # --- Prevent offset notation on y-axis for ax1 ---
+    y_formatter = ScalarFormatter(useOffset=False)
+    ax1.yaxis.set_major_formatter(y_formatter)
+    # You might also want to set a specific format for the numbers if needed
+    # from matplotlib.ticker import FormatStrFormatter
+    # ax1.yaxis.set_major_formatter(FormatStrFormatter('%.7f')) # Example: 7 decimal places
+
+    # Create a second y-axis (ax2) sharing the same x-axis
+    ax2 = ax1.twinx()
+    color_error = 'tab:red'
+    error = np.abs(M_tr[:, i, i] - M_tr_hat_[:, i, i]) # Calculate absolute error
+    ax2.set_ylabel("Error", color=color_error, fontsize=12)
+    line3, = ax2.plot(error, label="absolute error", color=color_error, linestyle=':')
+    ax2.tick_params(axis='y', labelcolor=color_error)
+    # Optionally, prevent offset for the error axis too if it has similar issues
+    ax2.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+
+
+    # Add legends
+    lines = [line1, line2, line3]
+    labels = [l.get_label() for l in lines]
+    ax1.legend(lines, labels, loc='best') # Changed loc to 'best' as an example
+
+plt.tight_layout(rect=[0, 0, 1, 0.96]) # Adjust layout to make space for suptitle
+plt.show()
+
+plt.figure(figsize=(12, 5 * n_rows)) # Adjust figsize as needed
+plt.suptitle("Test inertias diag elements", fontsize=16)
+for i in range(num_dof):
+    ax1 = plt.subplot(n_rows, 2, i + 1)
+
+    # Plot absolute values on the first y-axis (ax1)
+    color_true = 'tab:green'
+    ax1.set_ylabel("$M_{" + str(i + 1) + str(i + 1) + "}$ (value)", color=color_true, fontsize=12)
+    line1, = ax1.plot(M_test1[:, i, i], label="true value", color=color_true, linestyle='-')
+    line2, = ax1.plot(M_test1_hat_[:, i, i], label="estimated value", color=color_true, linestyle='--')
+    ax1.tick_params(axis='y', labelcolor=color_true)
+    ax1.grid(True, linestyle=':', alpha=0.7)
+
+    # --- Prevent offset notation on y-axis for ax1 ---
+    y_formatter = ScalarFormatter(useOffset=False)
+    ax1.yaxis.set_major_formatter(y_formatter)
+    # You might also want to set a specific format for the numbers if needed
+    # from matplotlib.ticker import FormatStrFormatter
+    # ax1.yaxis.set_major_formatter(FormatStrFormatter('%.7f')) # Example: 7 decimal places
+
+    # Create a second y-axis (ax2) sharing the same x-axis
+    ax2 = ax1.twinx()
+    color_error = 'tab:orange'
+    error = np.abs(M_test1[:, i, i] - M_test1_hat_[:, i, i]) # Calculate absolute error
+    ax2.set_ylabel("Error", color=color_error, fontsize=12)
+    line3, = ax2.plot(error, label="absolute error", color=color_error, linestyle=':')
+    ax2.tick_params(axis='y', labelcolor=color_error)
+    # Optionally, prevent offset for the error axis too if it has similar issues
+    # ax2.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+
+    # Add legends
+    lines = [line1, line2, line3]
+    labels = [l.get_label() for l in lines]
+    ax1.legend(lines, labels, loc='best')
+
+plt.tight_layout(rect=[0, 0, 1, 0.96]) # Adjust layout to make space for suptitle
+plt.show()
+# plot determinant of principal minors of M
+# plt.figure()
+# plt.suptitle("Training inertias det of principal minors")
+# for i in range(num_dof):
+#     plt.subplot(n_rows, 2, i + 1)
+#     plt.ylabel("$det(M_{" + str(i + 1) + str(i + 1) + "})$")
+#     plt.plot(np.linalg.det(M_tr[:, : i + 1, : i + 1]), label="true")
+#     plt.plot(np.linalg.det(M_tr_hat_[:, : i + 1, : i + 1]), label="estimated")
+#     plt.grid()
+#     plt.legend()
+# plt.figure()
+# plt.suptitle("Test inertias det of principal minors")
+# for i in range(num_dof):
+#     plt.subplot(n_rows, 2, i + 1)
+#     plt.ylabel("$det(M_{" + str(i + 1) + str(i + 1) + "})$")
+#     plt.plot(np.linalg.det(M_test1[:, : i + 1, : i + 1]), label="true")
+#     plt.plot(np.linalg.det(M_test1_hat_[:, : i + 1, : i + 1]), label="estimated")
+#     plt.grid()
+#     plt.legend()
+# plt.show()
 
 # GET ENERGY ESTIMATES #
 print("\n\n----- GET ENERGY ESTIMATES -----")
 
-if dyn_components_tr_path is not None:
-    Y_T_tr = 0.5 * np.array(
-        [
-            (input_tr[i, vel_indices].T.dot(M_tr[i, :, :])).dot(input_tr[i, vel_indices])
-            for i in range(input_tr.shape[0])
-        ]
-    ).reshape(-1, 1)
-    Y_T_test1 = 0.5 * np.array(
-        [
-            (input_test1[i, vel_indices].T.dot(M_test1[i, :, :])).dot(input_test1[i, vel_indices])
-            for i in range(input_test1.shape[0])
-        ]
-    ).reshape(-1, 1)
-else:
-    Y_T_tr = None
-    Y_T_test1 = None
+# compute actual energy
+Y_T_tr = 0.5 * np.array(
+    [(input_tr[i, vel_indices].T.dot(M_tr[i, :, :])).dot(input_tr[i, vel_indices]) for i in range(input_tr.shape[0])]
+).reshape(-1, 1)
+Y_T_test1 = 0.5 * np.array(
+    [
+        (input_test1[i, vel_indices].T.dot(M_test1[i, :, :])).dot(input_test1[i, vel_indices])
+        for i in range(input_test1.shape[0])
+    ]
+).reshape(-1, 1)
+
+# get actual potential energy
+if "U" in data_frame_tr.columns:
+    U_tr = data_frame_tr["U"].to_numpy().reshape(-1, 1)
+    U_test1 = data_frame_test1["U"].to_numpy().reshape(-1, 1)
 
 # get energy estimates
 with torch.no_grad():
@@ -814,108 +883,57 @@ with torch.no_grad():
         var_T_test1_hat,
         var_U_test1_hat,
     ) = m.get_energy_estimate_from_alpha(X=input_tr[::downsampling], X_test=input_test1, alpha=alpha_tr, K_X_inv=None)
-
-if flg_save:
-    pkl.dump(
-        {"Y_kin": Y_T_tr, "Y_kin_hat": Y_T_tr_hat, "M": M_tr, "M_hat": M_tr_hat_}, open(estimate_m_tr_saving_path, "wb")
-    )
-    pkl.dump(
-        {"Y_kin": Y_T_test1, "Y_kin_hat": Y_T_test1_hat, "M": M_test1, "M_hat": M_test1_hat_},
-        open(estimate_m_test1_saving_path, "wb"),
-    )
-
-if flg_plot:
-    Project_Utils.plot_energy(
-        true_kin=Y_T_tr,
-        true_pot=None,
-        true_lag=None,
-        est_kin=Y_T_tr_hat,
-        est_pot=Y_U_tr_hat,
-        est_lag=Y_L_tr_hat,
-        title="Training Energy",
-    )
-    Project_Utils.plot_energy(
-        true_kin=Y_T_test1,
-        true_pot=None,
-        true_lag=None,
-        est_kin=Y_T_test1_hat,
-        est_pot=Y_U_test1_hat,
-        est_lag=Y_L_test1_hat,
-        title="Test Energy",
-    )
-    plt.show()
+if "U" in data_frame_tr.columns:
+    U_offset_tr = U_tr[0] - Y_U_tr_hat[0]
+    U_offset_test1 = U_test1[0] - Y_U_test1_hat[0]
 
 
-# GET GRAVITATIONAL CONTRIBUTION #
-if dyn_components_tr_path is not None:
-    print("\n\n----- GET GRAVITATIONAL CONTRIBUTIONS -----")
-    with torch.no_grad():
-        g_tr_hat = (
-            m.get_g_estimates(
-                X_tr=torch.tensor(input_tr[::downsampling], dtype=dtype, device=device),
-                X_test=torch.tensor(input_tr, dtype=dtype, device=device),
-                alpha=alpha_tr,
-            )
-            .detach()
-            .cpu()
-            .numpy()
-        )
-        g_test1_hat = (
-            m.get_g_estimates(
-                X_tr=torch.tensor(input_tr[::downsampling], dtype=dtype, device=device),
-                X_test=torch.tensor(input_test1, dtype=dtype, device=device),
-                alpha=alpha_tr,
-            )
-            .detach()
-            .cpu()
-            .numpy()
-        )
+print("\nKinetic energy training ", end="")
+Project_Utils.get_stat_estimate(Y=Y_T_tr, Y_hat=Y_T_tr_hat, stat_name="nMSE")
+print("\nKinetic energy test ", end="")
+Project_Utils.get_stat_estimate(Y=Y_T_test1, Y_hat=Y_T_test1_hat, stat_name="nMSE")
 
-        # denormalize signals and move results to dictionary
-        d_g_tr = Project_Utils.get_results_dict(
-            Y=g_tr, Y_hat=g_tr_hat, norm_coef=norm_coef, mean_coef=mean_coef, Y_var=None, Y_noiseless=g_tr
-        )
-        d_g_test1 = Project_Utils.get_results_dict(
-            Y=g_test1, Y_hat=g_test1_hat, norm_coef=norm_coef, mean_coef=mean_coef, Y_var=None, Y_noiseless=g_test1
-        )
-        if flg_save:
-            pkl.dump(d_g_tr, open(estimate_g_tr_saving_path, "wb"))
-            pkl.dump([d_g_tr, d_g_test1], open(estimate_g_test1_saving_path, "wb"))
+if "U" in data_frame_tr.columns:
+    print("\nPotential energy training ", end="")
+    Project_Utils.get_stat_estimate(Y=U_tr - U_offset_tr, Y_hat=Y_U_tr_hat, stat_name="nMSE")
+    print("\nPotential energy test ", end="")
+    Project_Utils.get_stat_estimate(Y=U_test1 - U_offset_test1, Y_hat=Y_U_test1_hat, stat_name="nMSE")
 
-        # get the erros stats
-        print("\nnMSE")
-        Project_Utils.get_stat_estimate(Y=d_g_tr["Y_noiseless"], Y_hat=d_g_tr["Y_hat"], stat_name="nMSE")
-        Project_Utils.get_stat_estimate(Y=d_g_test1["Y_noiseless"], Y_hat=d_g_test1["Y_hat"], stat_name="nMSE")
-        print("\nMSE")
-        Project_Utils.get_stat_estimate(Y=d_g_tr["Y_noiseless"], Y_hat=d_g_tr["Y_hat"], stat_name="MSE")
-        Project_Utils.get_stat_estimate(Y=d_g_test1["Y_noiseless"], Y_hat=d_g_test1["Y_hat"], stat_name="MSE")
+if "U" in data_frame_tr.columns:
+    U_true_tr = U_tr - U_offset_tr
+    L_true_tr = -U_tr + U_offset_tr + Y_T_tr
+else:
+    U_true_tr = None
+    L_true_tr = None
 
-        if flg_plot:
-            # print the estimates
-            Project_Utils.print_estimate_with_vel(
-                Y=d_g_tr["Y"],
-                Y_hat=d_g_tr["Y_hat"],
-                joint_index_list=list(range(1, num_dof + 1)),
-                dq=dq_tr,
-                Y_noiseless=None,
-                Y_hat_var=None,
-                output_name="tau",
-            )
-            plt.show()
-            Project_Utils.print_estimate_with_vel(
-                Y=d_g_test1["Y"],
-                Y_hat=d_g_test1["Y_hat"],
-                joint_index_list=list(range(1, num_dof + 1)),
-                dq=dq_test1,
-                Y_noiseless=None,
-                Y_hat_var=None,
-                output_name="tau",
-            )
-            plt.show()
+if "U" in data_frame_tr.columns:
+    U_true_test1 = U_test1 - U_offset_test1
+    L_true_test1 = -U_test1 + U_offset_test1 + Y_T_test1
+else:
+    U_true_test1 = None
+    L_true_test1 = None
+
+Project_Utils.plot_energy(
+     true_kin=Y_T_tr,
+     true_pot=U_true_tr,
+     true_lag=L_true_tr,
+     est_kin=Y_T_tr_hat,
+     est_pot=Y_U_tr_hat,
+     est_lag=Y_L_tr_hat,
+     title="Energy estimates on training trajectory",
+ )
+Project_Utils.plot_energy(
+    true_kin=Y_T_test1,
+    true_pot=U_true_test1,
+    true_lag=L_true_test1,
+    est_kin=Y_T_test1_hat,
+    est_pot=Y_U_test1_hat,
+    est_lag=Y_L_test1_hat,
+    title="Energy estimates on test trajectory",
+)
+plt.show()
 
 
-# GET FRICTION COEFFICIENTS ESTIMATES #
-print("\n\n----- GET FRICTION COEFFICIENTS ESTIMATES -----")
 if flg_frict and friction_model == "linear":
     print("\nFriction parameters estimation:")
     w_friction_list = m.get_friction_parameters(
